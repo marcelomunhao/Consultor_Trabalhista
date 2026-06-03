@@ -15,9 +15,14 @@ const SUGESTOES = [
   "Piso salarial da categoria",
 ];
 
+interface ChatViewProps {
+  chatId: string;
+  messages: Message[];
+  onMessagesChange: (updater: (prev: Message[]) => Message[]) => void;
+}
+
 /** chatId identifica a conversa (sessionId no n8n). Trocar de chatId = chat limpo. */
-export function ChatView({ chatId }: { chatId: string }) {
-  const [messages, setMessages] = useState<Message[]>([]);
+export function ChatView({ chatId, messages, onMessagesChange }: ChatViewProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -30,7 +35,7 @@ export function ChatView({ chatId }: { chatId: string }) {
     setError(null);
     const userMsg: Message = { id: makeId(), role: "user", content: text, at: Date.now() };
     const botId = makeId();
-    setMessages((prev) => [
+    onMessagesChange((prev) => [
       ...prev,
       userMsg,
       { id: botId, role: "assistant", content: "", at: Date.now() },
@@ -39,9 +44,9 @@ export function ChatView({ chatId }: { chatId: string }) {
 
     try {
       await sendMessageStream({ message: text, sessionId: chatId }, (full) => {
-        setMessages((prev) => prev.map((m) => (m.id === botId ? { ...m, content: full } : m)));
+        onMessagesChange((prev) => prev.map((m) => (m.id === botId ? { ...m, content: full } : m)));
       });
-      setMessages((prev) =>
+      onMessagesChange((prev) =>
         prev.map((m) =>
           m.id === botId && !m.content ? { ...m, content: "(resposta vazia do n8n)" } : m,
         ),
@@ -52,7 +57,7 @@ export function ChatView({ chatId }: { chatId: string }) {
           ? err.message
           : "Falha ao falar com o backend. Verifique o webhook do n8n.",
       );
-      setMessages((prev) => prev.filter((m) => m.id !== botId));
+      onMessagesChange((prev) => prev.filter((m) => m.id !== botId));
     } finally {
       setLoading(false);
     }

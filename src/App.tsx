@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Sidebar, type View } from "./components/Sidebar";
 import { ChatView } from "./components/ChatView";
 import { DocumentosPanel } from "./components/DocumentosPanel";
 import { LoginGate } from "./components/LoginGate";
 import { authEnabled, logout } from "./auth";
-import { newChatId } from "./user";
+import { loadChats, novoChat, saveChats, tituloDoChat, type Chat } from "./chats";
+import type { Message } from "./types";
 
 export default function App() {
   return <LoginGate>{(email) => <Workspace email={email} />}</LoginGate>;
@@ -12,13 +13,50 @@ export default function App() {
 
 function Workspace({ email }: { email: string | null }) {
   const [view, setView] = useState<View>("chat");
-  const [chatId, setChatId] = useState<string>(() => newChatId());
-  // Forca recarregar o painel de documentos apos um upload bem-sucedido.
+  const [chats, setChats] = useState<Chat[]>(() => {
+    const existentes = loadChats();
+    return existentes.length ? existentes : [novoChat()];
+  });
+  const [activeId, setActiveId] = useState<string>(() => chats[0].id);
   const [docsVersion, setDocsVersion] = useState(0);
 
-  function novoChat() {
-    setChatId(newChatId());
+  useEffect(() => {
+    saveChats(chats);
+  }, [chats]);
+
+  const active = chats.find((c) => c.id === activeId) ?? chats[0];
+
+  function atualizarMensagens(updater: (prev: Message[]) => Message[]) {
+    setChats((prev) =>
+      prev.map((c) => {
+        if (c.id !== activeId) return c;
+        const messages = updater(c.messages);
+        return { ...c, messages, title: tituloDoChat(messages), updatedAt: Date.now() };
+      }),
+    );
+  }
+
+  function novoChatHandler() {
     setView("chat");
+    const atual = chats.find((c) => c.id === activeId);
+    if (atual && atual.messages.length === 0) return; // ja esta num chat vazio
+    const nc = novoChat();
+    setChats((prev) => [nc, ...prev]);
+    setActiveId(nc.id);
+  }
+
+  function selecionarChat(id: string) {
+    setActiveId(id);
+    setView("chat");
+  }
+
+  function excluirChat(id: string) {
+    setChats((prev) => {
+      const rest = prev.filter((c) => c.id !== id);
+      const next = rest.length ? rest : [novoChat()];
+      if (id === activeId) setActiveId(next[0].id);
+      return next;
+    });
   }
 
   function sair() {
@@ -31,7 +69,11 @@ function Workspace({ email }: { email: string | null }) {
       <Sidebar
         view={view}
         onSelectView={setView}
-        onNewChat={novoChat}
+        onNewChat={novoChatHandler}
+        chats={chats}
+        activeChatId={activeId}
+        onSelectChat={selecionarChat}
+        onDeleteChat={excluirChat}
         userEmail={email}
         authEnabled={authEnabled()}
         onLogout={sair}
@@ -42,7 +84,12 @@ function Workspace({ email }: { email: string | null }) {
 
       <main className="min-w-0 flex-1">
         {view === "chat" ? (
-          <ChatView key={chatId} chatId={chatId} />
+          <ChatView
+            key={active.id}
+            chatId={active.id}
+            messages={active.messages}
+            onMessagesChange={atualizarMensagens}
+          />
         ) : (
           <DocumentosPanel key={docsVersion} />
         )}
