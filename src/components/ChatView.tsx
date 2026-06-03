@@ -208,7 +208,7 @@ export function ChatView({ chatId, title, messages, onMessagesChange }: ChatView
             </button>
           </div>
           <p className="mt-1 px-1 text-[11px] text-[#5b8497]">
-            Link de leitura com o contexto da conversa. Copie e envie.
+            Link de leitura com o contexto da conversa (válido por 30 dias). Copie e envie.
           </p>
         </div>
       )}

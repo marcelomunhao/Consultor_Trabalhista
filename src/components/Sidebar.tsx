@@ -204,7 +204,7 @@ function ChatItem({
             onClick={(e) => {
               e.stopPropagation();
               setMenu(false);
-              onDelete();
+              if (window.confirm(`Excluir o chat "${chat.title || "Novo chat"}"?`)) onDelete();
             }}
             className="block w-full px-3 py-1.5 text-left text-sm text-red-300 transition hover:bg-[#143540]"
           >

@@ -107,7 +107,8 @@ ingest em lote (`fn_upsert_documento_raw`, `fn_insert_chunks_lote`).
 
 ## 4. Compartilhar conversa — `DP_Trabalhista_Share`
 
-Tabela `dp_assistant.shared_chats (id uuid, title, messages jsonb, created_at)`.
+Tabela `dp_assistant.shared_chats (id uuid, title, messages jsonb, created_at,
+expires_at)`. `expires_at` = `now() + 30 dias`; o GET filtra links expirados.
 
 - **Salvar** — `POST /webhook/trabalhista-share-save` com `{ title, messages }` →
   insere e responde `{ "id": "<uuid>" }`. O front monta o link `?share=<id>`.
