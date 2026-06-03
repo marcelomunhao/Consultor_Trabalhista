@@ -1,4 +1,5 @@
 import { UploadCct } from "./UploadCct";
+import { ConfirmModal } from "./ConfirmModal";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { Chat } from "../chats";
 
@@ -123,6 +124,7 @@ function ChatItem({
 }) {
   const [menu, setMenu] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [confirmar, setConfirmar] = useState(false);
   const [val, setVal] = useState(chat.title);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -204,13 +206,26 @@ function ChatItem({
             onClick={(e) => {
               e.stopPropagation();
               setMenu(false);
-              if (window.confirm(`Excluir o chat "${chat.title || "Novo chat"}"?`)) onDelete();
+              setConfirmar(true);
             }}
             className="block w-full px-3 py-1.5 text-left text-sm text-red-300 transition hover:bg-[#143540]"
           >
             Excluir
           </button>
         </div>
+      )}
+
+      {confirmar && (
+        <ConfirmModal
+          title="Excluir conversa"
+          message={`Tem certeza que deseja excluir "${chat.title || "Novo chat"}"? Esta ação não pode ser desfeita.`}
+          confirmLabel="Excluir"
+          onConfirm={() => {
+            setConfirmar(false);
+            onDelete();
+          }}
+          onCancel={() => setConfirmar(false)}
+        />
       )}
     </div>
   );
