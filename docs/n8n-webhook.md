@@ -64,30 +64,35 @@ O frontend (`src/vigencia.ts`) agrupa em **vencidos** (`vigencia_ate < hoje`) e
 
 ## 3. Upload de CCT — `POST /webhook/trabalhista-ingest`
 
-Fluxo: `Webhook → Parse e Chunk → Upsert Documento → (se novo) Explode → Embedding (OpenAI) → Insert Chunks → Respond`.
+Fluxo: `Webhook → Prepara → (PDF? → OCR Gemini → Extrai MD) → Parse e Chunk → Upsert Documento → (se novo) Explode → Embedding (OpenAI) → Insert Chunks → Respond`.
 
-Indexa um documento `.md` enviado pela sidebar para a busca RAG do chat. Usa as
-mesmas funções SQL do ingest em lote (`fn_upsert_documento_raw`, `fn_insert_chunks_lote`).
+Indexa um CCT enviado pela sidebar para a busca RAG do chat. Aceita **`.md`/`.txt`**
+(texto) ou **`.pdf`** (OCR via **Gemini 2.5 Flash**). Usa as mesmas funções SQL do
+ingest em lote (`fn_upsert_documento_raw`, `fn_insert_chunks_lote`).
 
 **Request** (`application/json`):
 ```json
+// markdown / texto
 { "filename": "2026-NOVA_CCT_2026-2027.md", "content": "<markdown completo>" }
+// PDF (OCR no n8n)
+{ "filename": "CCT.pdf", "mime": "application/pdf", "file_base64": "<base64 do PDF>" }
 ```
 
 **Response**:
 ```json
-{ "status": "ingerido", "chunks": 42 }
+{ "status": "ingerido", "chunks": 39 }
 ```
 - `status`: `ingerido` (novo/atualizado) ou `ja_ingerido` (dedup por fonte+hash, sem mudança).
+- PDF leva ~50s (OCR). O node OCR tem timeout de 180s.
 
-**Limitações conhecidas (hoje):**
-- Aceita **`.md` já convertido**. **PDF precisa de OCR** (Gemini) — não implementado
-  no n8n ainda (falta credencial Google). Próximo passo.
+**Limitações / notas:**
+- A chave do Gemini está **embutida na URL do node OCR** (no workflow, não no git).
+  Mover para uma credencial do n8n é recomendado.
 - Não grava o arquivo no bucket `dp-assistant/DOC/` (só indexa no banco). O ingest
   em lote continua sendo a fonte canônica via bucket.
 - Não preenche `vigencia_de/ate` do novo documento (a vigência vem do pipeline de
-  OCR/`vigencias.json`), então um CCT recém-enviado fica pesquisável pelo chat, mas
-  só aparece em "Vencimentos" após preencher a vigência.
+  `vigencias.json`), então um CCT recém-enviado fica pesquisável pelo chat, mas só
+  aparece em "Vencimentos" após preencher a vigência.
 
 ---
 

@@ -35,7 +35,7 @@ export function UploadCct({ onUploaded }: { onUploaded: () => void }) {
       <input
         ref={inputRef}
         type="file"
-        accept=".md,.txt,text/markdown,text/plain"
+        accept=".md,.txt,.pdf,text/markdown,text/plain,application/pdf"
         className="hidden"
         onChange={(e) => handleFile(e.target.files?.[0])}
       />
@@ -45,11 +45,13 @@ export function UploadCct({ onUploaded }: { onUploaded: () => void }) {
         className="flex w-full items-center gap-2 rounded-lg border border-dashed border-[#3a6675] bg-[#163945] px-3 py-2.5 text-sm text-[#a9c8d5] transition hover:border-[#4f8197] hover:text-white disabled:opacity-60"
       >
         <UploadIcon />
-        {enviando ? "Enviando..." : "Enviar CCT (.md)"}
+        {enviando ? "Processando..." : "Enviar CCT (.md/.pdf)"}
       </button>
 
       {estado.tipo === "enviando" && (
-        <p className="mt-1.5 truncate px-1 text-[11px] text-[#9bc3d2]">{estado.nome}</p>
+        <p className="mt-1.5 truncate px-1 text-[11px] text-[#9bc3d2]">
+          {estado.nome} — PDF faz OCR, pode levar ~1 min
+        </p>
       )}
       {estado.tipo === "ok" && (
         <p className="mt-1.5 px-1 text-[11px] text-emerald-300">{estado.msg}</p>

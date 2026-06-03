@@ -9,8 +9,8 @@ com **sidebar** estilo claude.ai:
 - **Assistente** — chat com IA. Cada conversa tem um `sessionId`, então o backend
   responde e memoriza individualmente (suporta ~10 usuários simultâneos).
 - **Vencimentos** — lista as CCTs/documentos **vencidos** e **a vencer** (30 dias).
-- **Enviar CCT** — upload de `.md` que dispara a ingestão (chunk + embedding) no
-  n8n, indexando o documento para a busca do chat.
+- **Enviar CCT** — upload de `.md` ou `.pdf` (PDF passa por OCR Gemini no n8n) que
+  dispara a ingestão (chunk + embedding), indexando o documento para a busca do chat.
 
 O **backend é n8n** (3 webhooks) + **Supabase** (Postgres). Não há servidor próprio
 neste repositório. Contrato completo em [`docs/n8n-webhook.md`](docs/n8n-webhook.md).

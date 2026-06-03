@@ -6,10 +6,19 @@ const INGEST_WEBHOOK_URL = import.meta.env.VITE_INGEST_WEBHOOK_URL as string | u
 
 export class WebhookError extends Error {}
 
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(",")[1] ?? "");
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
 /**
- * Envia um arquivo de CCT (markdown .md) ao webhook de ingestao do n8n. O
- * conteudo vai como texto em JSON; o n8n faz chunk + embedding e indexa o
- * documento para a busca do chat.
+ * Envia um CCT ao webhook de ingestao do n8n. `.md`/`.txt` vao como texto;
+ * `.pdf` vai em base64 e o n8n faz OCR (Gemini) antes de chunk + embedding.
+ * O documento fica indexado para a busca do chat.
  */
 export async function uploadCct(file: File, signal?: AbortSignal): Promise<string> {
   if (!INGEST_WEBHOOK_URL) {
@@ -18,11 +27,15 @@ export async function uploadCct(file: File, signal?: AbortSignal): Promise<strin
     );
   }
 
-  const content = await file.text();
+  const isPdf = /\.pdf$/i.test(file.name) || file.type === "application/pdf";
+  const payload = isPdf
+    ? { filename: file.name, mime: "application/pdf", file_base64: await fileToBase64(file) }
+    : { filename: file.name, content: await file.text() };
+
   const res = await fetch(INGEST_WEBHOOK_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ filename: file.name, content }),
+    body: JSON.stringify(payload),
     signal,
   });
   if (!res.ok) {
