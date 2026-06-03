@@ -30,8 +30,8 @@ export function ChatInput({ disabled, onSend, hero = false }: ChatInputProps) {
   }
 
   const containerCls = hero
-    ? "flex items-end gap-2 rounded-2xl border-2 border-[#bcd7e3] bg-white p-3 shadow-xl shadow-[#0e7490]/10 transition focus-within:border-[#0e7490]"
-    : "flex items-end gap-2 border-t border-[#cfe0e9] bg-white p-3";
+    ? "flex items-center gap-2 rounded-2xl border-2 border-[#bcd7e3] bg-white p-3 shadow-xl shadow-[#0e7490]/10 transition focus-within:border-[#0e7490]"
+    : "flex items-center gap-2 border-t border-[#cfe0e9] bg-white p-3";
 
   return (
     <form onSubmit={handleSubmit} className={containerCls}>

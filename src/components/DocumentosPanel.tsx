@@ -3,10 +3,42 @@ import { fetchDocumentos, WebhookError } from "../api";
 import { agrupar, diasRestantes, formatData, JANELA_DIAS } from "../vigencia";
 import type { Documento } from "../types";
 
+function normalizar(s: string | null): string {
+  return (s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+}
+
+/** Busca por nome: casa termos (sem acento) contra sindicato, base, tipo e titulo. */
+function filtrarPorNome(docs: Documento[], q: string): Documento[] {
+  const termos = normalizar(q).trim().split(/\s+/).filter(Boolean);
+  if (termos.length === 0) return docs;
+  return docs.filter((d) => {
+    const alvo = normalizar([d.sindicato, d.base, d.tipo, d.titulo].join(" "));
+    return termos.every((t) => alvo.includes(t));
+  });
+}
+
+function SearchIcon() {
+  return (
+    <svg
+      className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#7da7b8]"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="11" cy="11" r="7" />
+      <path d="m21 21-4.3-4.3" />
+    </svg>
+  );
+}
+
 export function DocumentosPanel() {
   const [docs, setDocs] = useState<Documento[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [q, setQ] = useState("");
 
   const carregar = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
@@ -32,7 +64,8 @@ export function DocumentosPanel() {
     return () => ctrl.abort();
   }, [carregar]);
 
-  const { vencidos, aVencer } = agrupar(docs);
+  const filtrados = filtrarPorNome(docs, q);
+  const { vencidos, aVencer } = agrupar(filtrados);
 
   return (
     <div className="flex h-full flex-col overflow-y-auto px-4 py-5">
@@ -46,6 +79,23 @@ export function DocumentosPanel() {
           {loading ? "Atualizando..." : "Atualizar"}
         </button>
       </div>
+
+      <div className="relative mb-4">
+        <SearchIcon />
+        <input
+          type="search"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Buscar por sindicato, categoria, tipo..."
+          className="w-full rounded-lg border border-[#cfe0e9] bg-[#f4fafd] py-2 pl-9 pr-3 text-sm text-[#0f2b35] outline-none placeholder:text-[#7da7b8] focus:border-[#0e7490] focus:ring-2 focus:ring-[#0e7490]/25"
+        />
+      </div>
+
+      {q.trim() && !loading && (
+        <p className="-mt-2 mb-3 text-xs text-[#5b8497]">
+          {vencidos.length + aVencer.length} resultado(s) para "{q.trim()}"
+        </p>
+      )}
 
       {error && (
         <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
