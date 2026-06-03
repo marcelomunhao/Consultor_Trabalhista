@@ -68,7 +68,8 @@ export function DocumentosPanel() {
   const { vencidos, aVencer } = agrupar(filtrados);
 
   return (
-    <div className="flex h-full flex-col overflow-y-auto px-4 py-5">
+    <div className="h-full overflow-y-auto">
+      <div className="mx-auto w-full max-w-3xl px-4 py-6">
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-sm font-semibold text-[#183844]">Vencimentos de documentos</h2>
         <button
@@ -122,6 +123,7 @@ export function DocumentosPanel() {
         docs={vencidos}
         vazio="Nenhum documento vencido."
       />
+      </div>
     </div>
   );
 }

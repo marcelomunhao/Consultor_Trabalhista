@@ -59,11 +59,11 @@ export function ChatView({ chatId }: { chatId: string }) {
     return (
       <div className="flex h-full flex-col items-center justify-center px-4">
         <div className="w-full max-w-2xl">
-          <div className="mb-7 text-center">
-            <h2 className="text-3xl font-bold tracking-tight text-[#0f2b35]">
+          <div className="mb-6 text-center">
+            <h2 className="text-2xl font-bold tracking-tight text-[#0f2b35]">
               Assistente Trabalhista
             </h2>
-            <p className="mt-2 text-base text-[#3f6f81]">Como posso ajudar você hoje?</p>
+            <p className="mt-1.5 text-sm text-[#3f6f81]">Como posso ajudar você hoje?</p>
           </div>
 
           {error && (
@@ -90,32 +90,38 @@ export function ChatView({ chatId }: { chatId: string }) {
     );
   }
 
-  // Conversa em andamento: mensagens + input fixo embaixo.
+  // Conversa em andamento: coluna central (mensagens) + input centralizado embaixo.
   return (
     <div className="flex h-full flex-col">
-      <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-5">
-        {messages.map((m) => (
-          <MessageBubble key={m.id} message={m} />
-        ))}
+      <div ref={scrollRef} className="flex-1 overflow-y-auto">
+        <div className="mx-auto w-full max-w-3xl space-y-3 px-4 py-6">
+          {messages.map((m) => (
+            <MessageBubble key={m.id} message={m} />
+          ))}
 
-        {loading && (
-          <div className="flex justify-start">
-            <div className="rounded-2xl rounded-bl-sm border border-[#cfe0e9] bg-white px-4 py-3 shadow-sm">
-              <span className="flex gap-1">
-                <Dot /> <Dot delay="0.15s" /> <Dot delay="0.3s" />
-              </span>
+          {loading && (
+            <div className="flex justify-start">
+              <div className="rounded-2xl rounded-bl-sm border border-[#cfe0e9] bg-white px-4 py-3 shadow-sm">
+                <span className="flex gap-1">
+                  <Dot /> <Dot delay="0.15s" /> <Dot delay="0.3s" />
+                </span>
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {error && (
-        <div className="border-t border-red-200 bg-red-50 px-4 py-2 text-xs text-red-700">
-          {error}
+        <div className="mx-auto w-full max-w-3xl px-4 pt-1">
+          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+            {error}
+          </div>
         </div>
       )}
 
-      <ChatInput disabled={loading} onSend={handleSend} />
+      <div className="mx-auto w-full max-w-3xl px-4 pb-4 pt-2">
+        <ChatInput disabled={loading} onSend={handleSend} />
+      </div>
     </div>
   );
 }
