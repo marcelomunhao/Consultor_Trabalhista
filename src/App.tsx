@@ -1,0 +1,118 @@
+import { useEffect, useRef, useState } from "react";
+import { MessageBubble } from "./components/MessageBubble";
+import { ChatInput } from "./components/ChatInput";
+import { sendMessage, WebhookError } from "./api";
+import type { Message } from "./types";
+
+/** Gera um id simples sem dependencias externas. */
+function makeId(): string {
+  return `${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`;
+}
+
+/** Mantem a mesma sessao enquanto a aba estiver aberta. */
+function getSessionId(): string {
+  const key = "trabalhista-session-id";
+  let id = sessionStorage.getItem(key);
+  if (!id) {
+    id = makeId();
+    sessionStorage.setItem(key, id);
+  }
+  return id;
+}
+
+export default function App() {
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const sessionId = useRef(getSessionId());
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+  }, [messages, loading]);
+
+  async function handleSend(text: string) {
+    setError(null);
+    const userMsg: Message = { id: makeId(), role: "user", content: text, at: Date.now() };
+    setMessages((prev) => [...prev, userMsg]);
+    setLoading(true);
+
+    try {
+      const reply = await sendMessage({ message: text, sessionId: sessionId.current });
+      const botMsg: Message = {
+        id: makeId(),
+        role: "assistant",
+        content: reply || "(resposta vazia do n8n)",
+        at: Date.now(),
+      };
+      setMessages((prev) => [...prev, botMsg]);
+    } catch (err) {
+      const msg =
+        err instanceof WebhookError
+          ? err.message
+          : "Falha ao falar com o backend. Verifique o webhook do n8n.";
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="flex h-full items-center justify-center bg-gradient-to-b from-[#eef6fb] to-[#dcecf4] p-4">
+      <div className="flex h-[min(90vh,760px)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[#cfe3ec] bg-[#f2fafd] shadow-xl">
+        {/* Header */}
+        <header className="flex items-center gap-3 border-b border-[#d7e8f0] bg-[#183844] px-5 py-4 text-white">
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#347891] font-semibold">
+            T
+          </div>
+          <div>
+            <h1 className="text-sm font-semibold leading-tight">Assistente Trabalhista</h1>
+            <p className="text-xs text-[#9bc3d2]">Conectado ao n8n via webhook</p>
+          </div>
+        </header>
+
+        {/* Mensagens */}
+        <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-5">
+          {messages.length === 0 && !loading && (
+            <div className="mt-10 text-center text-sm text-[#629bb5]">
+              Envie uma mensagem para comecar a conversa.
+            </div>
+          )}
+
+          {messages.map((m) => (
+            <MessageBubble key={m.id} message={m} />
+          ))}
+
+          {loading && (
+            <div className="flex justify-start">
+              <div className="rounded-2xl rounded-bl-sm border border-[#d7e8f0] bg-white px-4 py-3 shadow-sm">
+                <span className="flex gap-1">
+                  <Dot /> <Dot delay="0.15s" /> <Dot delay="0.3s" />
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Erro */}
+        {error && (
+          <div className="border-t border-red-200 bg-red-50 px-4 py-2 text-xs text-red-700">
+            {error}
+          </div>
+        )}
+
+        {/* Input */}
+        <ChatInput disabled={loading} onSend={handleSend} />
+      </div>
+    </div>
+  );
+}
+
+function Dot({ delay = "0s" }: { delay?: string }) {
+  return (
+    <span
+      className="inline-block h-2 w-2 animate-bounce rounded-full bg-[#629bb5]"
+      style={{ animationDelay: delay }}
+    />
+  );
+}

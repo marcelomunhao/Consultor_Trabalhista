@@ -1,0 +1,21 @@
+# Dependencies
+node_modules/
+
+# Build
+dist/
+*.tsbuildinfo
+
+# Env (segredos / URLs de webhook)
+.env
+.env.local
+.env.*.local
+
+# Editor / OS
+.claude/
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
+
+# Acervo de PDFs e scripts de OCR (fora do escopo deste projeto)
+pdfs/
