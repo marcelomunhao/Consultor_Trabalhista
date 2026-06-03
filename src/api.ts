@@ -1,10 +1,44 @@
-import type { Documento, WebhookRequest } from "./types";
+import type { Documento, Message, WebhookRequest } from "./types";
 
 const CHAT_WEBHOOK_URL = import.meta.env.VITE_N8N_WEBHOOK_URL as string | undefined;
 const DOCS_WEBHOOK_URL = import.meta.env.VITE_DOCS_WEBHOOK_URL as string | undefined;
 const INGEST_WEBHOOK_URL = import.meta.env.VITE_INGEST_WEBHOOK_URL as string | undefined;
+const SHARE_SAVE_URL = import.meta.env.VITE_SHARE_SAVE_URL as string | undefined;
+const SHARE_GET_URL = import.meta.env.VITE_SHARE_GET_URL as string | undefined;
 
 export class WebhookError extends Error {}
+
+/** Salva a conversa para compartilhamento e retorna o id do share. */
+export async function shareChat(
+  title: string,
+  messages: Message[],
+  signal?: AbortSignal,
+): Promise<string> {
+  if (!SHARE_SAVE_URL) throw new WebhookError("VITE_SHARE_SAVE_URL nao configurada.");
+  const res = await fetch(SHARE_SAVE_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title, messages }),
+    signal,
+  });
+  if (!res.ok) throw new WebhookError(`O n8n respondeu com status ${res.status}.`);
+  const data = (await res.json()) as { id?: string };
+  if (!data?.id) throw new WebhookError("Resposta de compartilhamento sem id.");
+  return data.id;
+}
+
+/** Carrega uma conversa compartilhada (read-only) pelo id. */
+export async function fetchSharedChat(
+  id: string,
+  signal?: AbortSignal,
+): Promise<{ title: string; messages: Message[] }> {
+  if (!SHARE_GET_URL) throw new WebhookError("VITE_SHARE_GET_URL nao configurada.");
+  const res = await fetch(`${SHARE_GET_URL}?id=${encodeURIComponent(id)}`, { signal });
+  if (!res.ok) throw new WebhookError(`O n8n respondeu com status ${res.status}.`);
+  const data = (await res.json()) as { title?: string; messages?: unknown };
+  const messages = Array.isArray(data?.messages) ? (data.messages as Message[]) : [];
+  return { title: data?.title ?? "Conversa", messages };
+}
 
 function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {

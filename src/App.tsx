@@ -3,11 +3,14 @@ import { Sidebar, type View } from "./components/Sidebar";
 import { ChatView } from "./components/ChatView";
 import { DocumentosPanel } from "./components/DocumentosPanel";
 import { LoginGate } from "./components/LoginGate";
+import { SharedView } from "./components/SharedView";
 import { authEnabled, logout } from "./auth";
 import { loadChats, novoChat, saveChats, tituloDoChat, type Chat } from "./chats";
 import type { Message } from "./types";
 
 export default function App() {
+  const shareId = new URLSearchParams(window.location.search).get("share");
+  if (shareId) return <SharedView id={shareId} />;
   return <LoginGate>{(email) => <Workspace email={email} />}</LoginGate>;
 }
 
@@ -31,8 +34,17 @@ function Workspace({ email }: { email: string | null }) {
       prev.map((c) => {
         if (c.id !== activeId) return c;
         const messages = updater(c.messages);
-        return { ...c, messages, title: tituloDoChat(messages), updatedAt: Date.now() };
+        const title = c.titleCustom ? c.title : tituloDoChat(messages);
+        return { ...c, messages, title, updatedAt: Date.now() };
       }),
+    );
+  }
+
+  function renomearChat(id: string, novo: string) {
+    const t = novo.trim();
+    if (!t) return;
+    setChats((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, title: t, titleCustom: true } : c)),
     );
   }
 
@@ -73,6 +85,7 @@ function Workspace({ email }: { email: string | null }) {
         chats={chats}
         activeChatId={activeId}
         onSelectChat={selecionarChat}
+        onRenameChat={renomearChat}
         onDeleteChat={excluirChat}
         userEmail={email}
         authEnabled={authEnabled()}
@@ -87,6 +100,7 @@ function Workspace({ email }: { email: string | null }) {
           <ChatView
             key={active.id}
             chatId={active.id}
+            title={active.title}
             messages={active.messages}
             onMessagesChange={atualizarMensagens}
           />

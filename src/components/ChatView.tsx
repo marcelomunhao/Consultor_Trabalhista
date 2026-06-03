@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { MessageBubble } from "./MessageBubble";
 import { ChatInput } from "./ChatInput";
-import { sendMessageStream, WebhookError } from "../api";
+import { sendMessageStream, shareChat, WebhookError } from "../api";
 import type { Message } from "../types";
 
 function makeId(): string {
@@ -17,14 +17,17 @@ const SUGESTOES = [
 
 interface ChatViewProps {
   chatId: string;
+  title: string;
   messages: Message[];
   onMessagesChange: (updater: (prev: Message[]) => Message[]) => void;
 }
 
 /** chatId identifica a conversa (sessionId no n8n). Trocar de chatId = chat limpo. */
-export function ChatView({ chatId, messages, onMessagesChange }: ChatViewProps) {
+export function ChatView({ chatId, title, messages, onMessagesChange }: ChatViewProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [sharing, setSharing] = useState(false);
 
   // Streaming suave: os tokens vao para targetRef (sem re-render); um loop de
   // animacao revela o texto em direcao ao alvo, re-renderizando so a bolha.
@@ -111,6 +114,26 @@ export function ChatView({ chatId, messages, onMessagesChange }: ChatViewProps) 
     }
   }
 
+  async function compartilhar() {
+    if (!messages.length || sharing) return;
+    setSharing(true);
+    setError(null);
+    try {
+      const id = await shareChat(title || "Conversa", messages);
+      const url = `${window.location.origin}${window.location.pathname}?share=${id}`;
+      setShareUrl(url);
+      try {
+        await navigator.clipboard?.writeText(url);
+      } catch {
+        // contexto inseguro (http) — o usuario copia manualmente da caixa
+      }
+    } catch (err) {
+      setError(err instanceof WebhookError ? err.message : "Falha ao gerar o link de compartilhamento.");
+    } finally {
+      setSharing(false);
+    }
+  }
+
   // Tela inicial: input centralizado, estilo claude.ai.
   if (messages.length === 0 && !loading) {
     return (
@@ -150,6 +173,46 @@ export function ChatView({ chatId, messages, onMessagesChange }: ChatViewProps) 
   // Conversa em andamento: coluna central (mensagens) + input centralizado embaixo.
   return (
     <div className="flex h-full flex-col">
+      <header className="flex items-center justify-between gap-2 border-b border-[#eef2f5] px-4 py-2.5">
+        <span className="truncate text-sm font-medium text-[#0f2b35]">{title || "Conversa"}</span>
+        <button
+          onClick={compartilhar}
+          disabled={sharing}
+          className="flex shrink-0 items-center gap-1.5 rounded-lg border border-[#cfe0e9] bg-white px-3 py-1.5 text-xs font-medium text-[#0e7490] transition hover:bg-[#eef6fb] disabled:opacity-50"
+        >
+          <ShareIcon />
+          {sharing ? "Gerando..." : "Compartilhar"}
+        </button>
+      </header>
+
+      {shareUrl && (
+        <div className="mx-auto mt-2 w-full max-w-3xl px-4">
+          <div className="flex items-center gap-2 rounded-lg border border-[#bcd7e3] bg-[#eef6fb] px-3 py-2">
+            <input
+              readOnly
+              value={shareUrl}
+              onFocus={(e) => e.currentTarget.select()}
+              className="min-w-0 flex-1 bg-transparent text-xs text-[#0f2b35] outline-none"
+            />
+            <button
+              onClick={() => navigator.clipboard?.writeText(shareUrl)}
+              className="shrink-0 rounded-md bg-[#0e7490] px-2.5 py-1 text-xs font-medium text-white hover:bg-[#0c5d72]"
+            >
+              Copiar
+            </button>
+            <button
+              onClick={() => setShareUrl(null)}
+              className="shrink-0 rounded-md px-1.5 py-1 text-xs text-[#5b8497] hover:text-[#0f2b35]"
+            >
+              ✕
+            </button>
+          </div>
+          <p className="mt-1 px-1 text-[11px] text-[#5b8497]">
+            Link de leitura com o contexto da conversa. Copie e envie.
+          </p>
+        </div>
+      )}
+
       <div ref={scrollRef} className="flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-3xl space-y-3 px-4 py-6">
           {messages.map((m) => (
@@ -173,5 +236,16 @@ export function ChatView({ chatId, messages, onMessagesChange }: ChatViewProps) 
         <ChatInput disabled={loading} onSend={handleSend} />
       </div>
     </div>
+  );
+}
+
+function ShareIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="18" cy="5" r="3" />
+      <circle cx="6" cy="12" r="3" />
+      <circle cx="18" cy="19" r="3" />
+      <path d="m8.6 13.5 6.8 4M15.4 6.5 8.6 10.5" />
+    </svg>
   );
 }

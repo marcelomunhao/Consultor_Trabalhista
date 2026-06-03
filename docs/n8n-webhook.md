@@ -11,6 +11,8 @@ Base do n8n: `https://webhook.vps.central-rnc.com.br`
 | Chat (Assistente) | `DP_Trabalhista_Chat_API` | `bCc1WDoYsIQuiTk6` | `POST /webhook/trabalhista-chat` |
 | Vencimentos | `DP_Trabalhista_Documentos_API` | `oWeYx5xN0JKqHvBJ` | `GET /webhook/trabalhista-documentos` |
 | Upload de CCT | `DP_Trabalhista_Ingestao_API` | `9wmiEK3TnkTnhdXU` | `POST /webhook/trabalhista-ingest` |
+| Compartilhar (salvar) | `DP_Trabalhista_Share` | `wYq8qu7BgNXUPyhl` | `POST /webhook/trabalhista-share-save` |
+| Compartilhar (abrir) | `DP_Trabalhista_Share` | `wYq8qu7BgNXUPyhl` | `GET /webhook/trabalhista-share-get?id=` |
 
 ---
 
@@ -100,6 +102,17 @@ ingest em lote (`fn_upsert_documento_raw`, `fn_insert_chunks_lote`).
 - Não preenche `vigencia_de/ate` do novo documento (a vigência vem do pipeline de
   `vigencias.json`), então um CCT recém-enviado fica pesquisável pelo chat, mas só
   aparece em "Vencimentos" após preencher a vigência.
+
+---
+
+## 4. Compartilhar conversa — `DP_Trabalhista_Share`
+
+Tabela `dp_assistant.shared_chats (id uuid, title, messages jsonb, created_at)`.
+
+- **Salvar** — `POST /webhook/trabalhista-share-save` com `{ title, messages }` →
+  insere e responde `{ "id": "<uuid>" }`. O front monta o link `?share=<id>`.
+- **Abrir** — `GET /webhook/trabalhista-share-get?id=<uuid>` → `{ title, messages }`.
+  O front (`SharedView`) abre em modo somente-leitura, sem login.
 
 ---
 

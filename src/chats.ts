@@ -5,6 +5,8 @@ import { newChatId } from "./user";
 export interface Chat {
   id: string;
   title: string;
+  /** true quando o usuario renomeou manualmente (nao sobrescrever pela 1a mensagem). */
+  titleCustom?: boolean;
   messages: Message[];
   updatedAt: number;
 }

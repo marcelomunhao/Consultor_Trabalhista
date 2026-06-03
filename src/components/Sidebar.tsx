@@ -1,5 +1,5 @@
 import { UploadCct } from "./UploadCct";
-import type { ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { Chat } from "../chats";
 
 export type View = "chat" | "documentos";
@@ -11,6 +11,7 @@ interface SidebarProps {
   chats: Chat[];
   activeChatId: string;
   onSelectChat: (id: string) => void;
+  onRenameChat: (id: string, title: string) => void;
   onDeleteChat: (id: string) => void;
   userEmail: string | null;
   authEnabled: boolean;
@@ -25,6 +26,7 @@ export function Sidebar({
   chats,
   activeChatId,
   onSelectChat,
+  onRenameChat,
   onDeleteChat,
   userEmail,
   authEnabled,
@@ -71,6 +73,7 @@ export function Sidebar({
               chat={c}
               active={view === "chat" && c.id === activeChatId}
               onSelect={() => onSelectChat(c.id)}
+              onRename={(t) => onRenameChat(c.id, t)}
               onDelete={() => onDeleteChat(c.id)}
             />
           ))}
@@ -109,18 +112,63 @@ function ChatItem({
   chat,
   active,
   onSelect,
+  onRename,
   onDelete,
 }: {
   chat: Chat;
   active: boolean;
   onSelect: () => void;
+  onRename: (title: string) => void;
   onDelete: () => void;
 }) {
+  const [menu, setMenu] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [val, setVal] = useState(chat.title);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menu) return;
+    const fechar = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setMenu(false);
+    };
+    document.addEventListener("mousedown", fechar);
+    return () => document.removeEventListener("mousedown", fechar);
+  }, [menu]);
+
+  function salvar() {
+    setEditing(false);
+    const t = val.trim();
+    if (t && t !== chat.title) onRename(t);
+    else setVal(chat.title);
+  }
+
+  if (editing) {
+    return (
+      <div className="px-0.5 py-0.5">
+        <input
+          autoFocus
+          value={val}
+          onChange={(e) => setVal(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") salvar();
+            if (e.key === "Escape") {
+              setEditing(false);
+              setVal(chat.title);
+            }
+          }}
+          onBlur={salvar}
+          className="w-full rounded-md border border-[#0e7490] bg-[#0c272f] px-2 py-1 text-sm text-white outline-none"
+        />
+      </div>
+    );
+  }
+
   return (
     <div
+      ref={ref}
       onClick={onSelect}
       className={[
-        "group flex cursor-pointer items-center justify-between gap-1 rounded-lg px-2.5 py-1.5 text-sm transition",
+        "group relative flex cursor-pointer items-center justify-between gap-1 rounded-lg px-2.5 py-1.5 text-sm transition",
         active ? "bg-[#163945] text-white" : "text-[#a9c8d5] hover:bg-[#143540] hover:text-white",
       ].join(" ")}
     >
@@ -128,13 +176,42 @@ function ChatItem({
       <button
         onClick={(e) => {
           e.stopPropagation();
-          onDelete();
+          setVal(chat.title);
+          setMenu((o) => !o);
         }}
-        title="Excluir chat"
-        className="hidden shrink-0 rounded p-0.5 text-[#7da7b8] transition hover:text-white group-hover:block"
+        title="Opções"
+        className={[
+          "shrink-0 rounded p-0.5 text-[#7da7b8] transition hover:text-white",
+          menu ? "block" : "hidden group-hover:block",
+        ].join(" ")}
       >
-        <XIcon />
+        <DotsIcon />
       </button>
+
+      {menu && (
+        <div className="absolute right-1 top-8 z-20 w-32 overflow-hidden rounded-lg border border-[#1d4350] bg-[#0c272f] py-1 shadow-xl">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setMenu(false);
+              setEditing(true);
+            }}
+            className="block w-full px-3 py-1.5 text-left text-sm text-[#cfe3ec] transition hover:bg-[#143540]"
+          >
+            Renomear
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setMenu(false);
+              onDelete();
+            }}
+            className="block w-full px-3 py-1.5 text-left text-sm text-red-300 transition hover:bg-[#143540]"
+          >
+            Excluir
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -183,10 +260,12 @@ function DocIcon() {
   );
 }
 
-function XIcon() {
+function DotsIcon() {
   return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-      <path d="M18 6 6 18M6 6l12 12" />
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+      <circle cx="12" cy="5" r="1.6" />
+      <circle cx="12" cy="12" r="1.6" />
+      <circle cx="12" cy="19" r="1.6" />
     </svg>
   );
 }
