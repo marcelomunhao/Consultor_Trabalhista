@@ -25,11 +25,55 @@ interface ChatViewProps {
 export function ChatView({ chatId, messages, onMessagesChange }: ChatViewProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Streaming suave: os tokens vao para targetRef (sem re-render); um loop de
+  // animacao revela o texto em direcao ao alvo, re-renderizando so a bolha.
+  const [streamingId, setStreamingId] = useState<string | null>(null);
+  const [streamingText, setStreamingText] = useState("");
+  const targetRef = useRef("");
+  const shownRef = useRef("");
+  const doneRef = useRef(false);
+  const rafRef = useRef<number | null>(null);
+
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-  }, [messages, loading]);
+  }, [messages, streamingText, loading]);
+
+  function animar(botId: string) {
+    targetRef.current = "";
+    shownRef.current = "";
+    doneRef.current = false;
+    setStreamingText("");
+    setStreamingId(botId);
+
+    const tick = () => {
+      const alvo = targetRef.current;
+      const atual = shownRef.current;
+      if (atual.length < alvo.length) {
+        // revela uma fracao do que falta -> rapido quando atrasado, suave no fim
+        const falta = alvo.length - atual.length;
+        const passo = Math.max(2, Math.ceil(falta * 0.2));
+        const proximo = alvo.slice(0, atual.length + passo);
+        shownRef.current = proximo;
+        setStreamingText(proximo);
+        rafRef.current = requestAnimationFrame(tick);
+      } else if (!doneRef.current) {
+        rafRef.current = requestAnimationFrame(tick); // espera mais tokens
+      } else {
+        rafRef.current = null;
+        setStreamingId(null); // terminou: passa a renderizar do estado do app
+      }
+    };
+    rafRef.current = requestAnimationFrame(tick);
+  }
 
   async function handleSend(text: string) {
     setError(null);
@@ -41,17 +85,21 @@ export function ChatView({ chatId, messages, onMessagesChange }: ChatViewProps) 
       { id: botId, role: "assistant", content: "", at: Date.now() },
     ]);
     setLoading(true);
+    animar(botId);
 
     try {
-      await sendMessageStream({ message: text, sessionId: chatId }, (full) => {
-        onMessagesChange((prev) => prev.map((m) => (m.id === botId ? { ...m, content: full } : m)));
+      const final = await sendMessageStream({ message: text, sessionId: chatId }, (full) => {
+        targetRef.current = full; // so atualiza o buffer; a animacao exibe
       });
-      onMessagesChange((prev) =>
-        prev.map((m) =>
-          m.id === botId && !m.content ? { ...m, content: "(resposta vazia do n8n)" } : m,
-        ),
-      );
+      const texto = final || "(resposta vazia do n8n)";
+      targetRef.current = texto;
+      onMessagesChange((prev) => prev.map((m) => (m.id === botId ? { ...m, content: texto } : m)));
+      doneRef.current = true; // a animacao termina de revelar e limpa o streamingId
     } catch (err) {
+      doneRef.current = true;
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+      setStreamingId(null);
       setError(
         err instanceof WebhookError
           ? err.message
@@ -105,7 +153,10 @@ export function ChatView({ chatId, messages, onMessagesChange }: ChatViewProps) 
       <div ref={scrollRef} className="flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-3xl space-y-3 px-4 py-6">
           {messages.map((m) => (
-            <MessageBubble key={m.id} message={m} />
+            <MessageBubble
+              key={m.id}
+              message={m.id === streamingId ? { ...m, content: streamingText } : m}
+            />
           ))}
         </div>
       </div>

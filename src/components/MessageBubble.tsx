@@ -1,3 +1,4 @@
+import { memo } from "react";
 import type { Message } from "../types";
 import { Markdown } from "./Markdown";
 
@@ -6,7 +7,7 @@ const timeFmt = new Intl.DateTimeFormat("pt-BR", {
   minute: "2-digit",
 });
 
-export function MessageBubble({ message }: { message: Message }) {
+function MessageBubbleBase({ message }: { message: Message }) {
   const isUser = message.role === "user";
 
   return (
@@ -33,6 +34,8 @@ export function MessageBubble({ message }: { message: Message }) {
     </div>
   );
 }
+
+export const MessageBubble = memo(MessageBubbleBase);
 
 function TypingDots() {
   return (
