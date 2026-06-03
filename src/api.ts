@@ -130,7 +130,7 @@ export async function sendMessageStream(
     const piece = parseLinhaStream(t);
     if (piece) {
       full += piece;
-      onUpdate(full);
+      onUpdate(sanitizeResposta(full));
     }
   };
 
@@ -154,7 +154,18 @@ export async function sendMessageStream(
       return fallback;
     }
   }
-  return full;
+  return sanitizeResposta(full);
+}
+
+/**
+ * Remove o rastro de chamadas de ferramenta do agente
+ * (ex.: 'Calling buscar_norma_trabalhista with input: {...}') que vaza no stream.
+ */
+function sanitizeResposta(s: string): string {
+  return s
+    .replace(/Calling\s+\S+\s+with input:\s*\{[^}]*\}/g, "")
+    .replace(/Calling\s+\S+\s+with input:\s*\{[^}]*$/g, "")
+    .replace(/^\s+/, "");
 }
 
 /** Extrai o texto de uma linha NDJSON do stream do n8n. */
