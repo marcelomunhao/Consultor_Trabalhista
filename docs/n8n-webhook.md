@@ -6,10 +6,11 @@ neste repositório — só o contrato que os workflows respeitam.
 Base do n8n: `https://webhook.vps.central-rnc.com.br`
 (produção: `/webhook/<path>` — teste no editor: `/webhook-test/<path>`)
 
-| Aba do front | Workflow n8n | ID | Webhook (produção) |
+| Função | Workflow n8n | ID | Webhook (produção) |
 |---|---|---|---|
-| Assistente | `DP_Trabalhista_Chat_API` | `bCc1WDoYsIQuiTk6` | `POST /webhook/trabalhista-chat` |
+| Chat (Assistente) | `DP_Trabalhista_Chat_API` | `bCc1WDoYsIQuiTk6` | `POST /webhook/trabalhista-chat` |
 | Vencimentos | `DP_Trabalhista_Documentos_API` | `oWeYx5xN0JKqHvBJ` | `GET /webhook/trabalhista-documentos` |
+| Upload de CCT | `DP_Trabalhista_Ingestao_API` | `9wmiEK3TnkTnhdXU` | `POST /webhook/trabalhista-ingest` |
 
 ---
 
@@ -58,6 +59,35 @@ ordenados por data final:
 
 O frontend (`src/vigencia.ts`) agrupa em **vencidos** (`vigencia_ate < hoje`) e
 **a vencer** (próximos 30 dias). `tipo`/`sindicato`/`base` vêm do `metadata` (jsonb).
+
+---
+
+## 3. Upload de CCT — `POST /webhook/trabalhista-ingest`
+
+Fluxo: `Webhook → Parse e Chunk → Upsert Documento → (se novo) Explode → Embedding (OpenAI) → Insert Chunks → Respond`.
+
+Indexa um documento `.md` enviado pela sidebar para a busca RAG do chat. Usa as
+mesmas funções SQL do ingest em lote (`fn_upsert_documento_raw`, `fn_insert_chunks_lote`).
+
+**Request** (`application/json`):
+```json
+{ "filename": "2026-NOVA_CCT_2026-2027.md", "content": "<markdown completo>" }
+```
+
+**Response**:
+```json
+{ "status": "ingerido", "chunks": 42 }
+```
+- `status`: `ingerido` (novo/atualizado) ou `ja_ingerido` (dedup por fonte+hash, sem mudança).
+
+**Limitações conhecidas (hoje):**
+- Aceita **`.md` já convertido**. **PDF precisa de OCR** (Gemini) — não implementado
+  no n8n ainda (falta credencial Google). Próximo passo.
+- Não grava o arquivo no bucket `dp-assistant/DOC/` (só indexa no banco). O ingest
+  em lote continua sendo a fonte canônica via bucket.
+- Não preenche `vigencia_de/ate` do novo documento (a vigência vem do pipeline de
+  OCR/`vigencias.json`), então um CCT recém-enviado fica pesquisável pelo chat, mas
+  só aparece em "Vencimentos" após preencher a vigência.
 
 ---
 

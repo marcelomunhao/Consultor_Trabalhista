@@ -1,15 +1,19 @@
 # Trabalhista
 
-Frontend de um assistente de **Departamento Pessoal** (CLT e convenções coletivas).
-Duas abas:
+Frontend de um assistente de **Departamento Pessoal** (CLT e convenções coletivas),
+com **sidebar** estilo claude.ai:
 
-- **Assistente** — chat com IA. Cada usuário tem um UUID estável (localStorage)
-  enviado como `sessionId`, então o backend responde e memoriza por pessoa
-  (suporta ~10 usuários simultâneos).
+- **Login** — tela de acesso (e-mails autorizados + senha compartilhada),
+  configurável por env. Vazio = acesso livre.
+- **Novo chat** — começa uma conversa limpa (novo `sessionId` → memória nova).
+- **Assistente** — chat com IA. Cada conversa tem um `sessionId`, então o backend
+  responde e memoriza individualmente (suporta ~10 usuários simultâneos).
 - **Vencimentos** — lista as CCTs/documentos **vencidos** e **a vencer** (30 dias).
+- **Enviar CCT** — upload de `.md` que dispara a ingestão (chunk + embedding) no
+  n8n, indexando o documento para a busca do chat.
 
-O **backend é n8n** (via webhooks) + **Supabase** (Postgres). Não há servidor
-próprio neste repositório. Contrato completo em [`docs/n8n-webhook.md`](docs/n8n-webhook.md).
+O **backend é n8n** (3 webhooks) + **Supabase** (Postgres). Não há servidor próprio
+neste repositório. Contrato completo em [`docs/n8n-webhook.md`](docs/n8n-webhook.md).
 
 ## Stack
 
@@ -49,12 +53,18 @@ O `.env.example` já vem com as URLs de produção dos webhooks.
 
 ## Variáveis de ambiente
 
-| Variável                | Descrição                                              |
-| ----------------------- | ------------------------------------------------------ |
-| `VITE_N8N_WEBHOOK_URL`  | Webhook de chat (POST `{message, sessionId}`→`{reply}`). |
-| `VITE_DOCS_WEBHOOK_URL` | Webhook de documentos (GET → array com vigências).     |
+| Variável                  | Descrição                                                  |
+| ------------------------- | ---------------------------------------------------------- |
+| `VITE_N8N_WEBHOOK_URL`    | Webhook de chat (POST `{message, sessionId}`→`{reply}`).   |
+| `VITE_DOCS_WEBHOOK_URL`   | Webhook de documentos (GET → array com vigências).         |
+| `VITE_INGEST_WEBHOOK_URL` | Webhook de ingestão (POST `{filename, content}`).          |
+| `VITE_AUTH_USERS`         | E-mails autorizados (separados por vírgula). Vazio = livre.|
+| `VITE_AUTH_PASSWORD`      | Senha compartilhada. **Não comite a senha real.**          |
 
 Variáveis `VITE_*` vão para o bundle do navegador — não coloque segredos aqui.
+O login é uma **barreira client-side** (a senha fica no bundle compilado, fora do
+git): bom para dissuadir acesso casual, mas não é segurança forte. Para endurecer,
+proteja os webhooks com token e valide o login no n8n.
 
 ## Estrutura
 
@@ -62,13 +72,17 @@ Variáveis `VITE_*` vão para o bundle do navegador — não coloque segredos aq
 .
 ├── docs/n8n-webhook.md     # contrato dos 2 webhooks (chat e documentos) + CORS
 ├── src/
-│   ├── api.ts              # sendMessage() + fetchDocumentos()
-│   ├── user.ts             # UUID estável por navegador (localStorage)
+│   ├── api.ts              # sendMessage() + fetchDocumentos() + uploadCct()
+│   ├── auth.ts             # login (e-mails + senha por env) e sessão
+│   ├── user.ts             # UUID por navegador + newChatId()
 │   ├── vigencia.ts         # agrupamento vencidos / a vencer + formatação
 │   ├── types.ts            # Message, WebhookRequest, Documento
-│   ├── App.tsx             # shell com abas (Assistente | Vencimentos)
+│   ├── App.tsx             # shell: LoginGate + Sidebar + área principal
 │   └── components/
-│       ├── ChatView.tsx        # chat (estado, sessão, loading, erro)
+│       ├── Sidebar.tsx          # menu lateral (novo chat, navegação, upload, sair)
+│       ├── LoginGate.tsx        # tela de login / liberação
+│       ├── UploadCct.tsx        # envio de CCT (.md) → ingest
+│       ├── ChatView.tsx         # chat (estado, sessão, loading, erro)
 │       ├── ChatInput.tsx
 │       ├── MessageBubble.tsx
 │       └── DocumentosPanel.tsx  # lista de vencimentos

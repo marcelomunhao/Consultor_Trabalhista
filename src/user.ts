@@ -14,9 +14,8 @@ function generateUuid(): string {
 }
 
 /**
- * UUID estavel por navegador (persistido em localStorage). E enviado ao n8n
- * como sessionId para que cada usuario tenha execucao e memoria individuais,
- * mesmo com varios usuarios simultaneos.
+ * UUID estavel por navegador (persistido em localStorage). Identifica o
+ * dispositivo/usuario de forma estavel entre sessoes.
  */
 export function getUserId(): string {
   let id = localStorage.getItem(STORAGE_KEY);
@@ -25,4 +24,12 @@ export function getUserId(): string {
     localStorage.setItem(STORAGE_KEY, id);
   }
   return id;
+}
+
+/**
+ * Gera um novo identificador de conversa. Enviado ao n8n como sessionId — cada
+ * chatId e uma thread de memoria separada, entao "Novo chat" comeca limpo.
+ */
+export function newChatId(): string {
+  return generateUuid();
 }

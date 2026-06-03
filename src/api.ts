@@ -2,8 +2,42 @@ import type { Documento, WebhookRequest } from "./types";
 
 const CHAT_WEBHOOK_URL = import.meta.env.VITE_N8N_WEBHOOK_URL as string | undefined;
 const DOCS_WEBHOOK_URL = import.meta.env.VITE_DOCS_WEBHOOK_URL as string | undefined;
+const INGEST_WEBHOOK_URL = import.meta.env.VITE_INGEST_WEBHOOK_URL as string | undefined;
 
 export class WebhookError extends Error {}
+
+/**
+ * Envia um arquivo de CCT (markdown .md) ao webhook de ingestao do n8n. O
+ * conteudo vai como texto em JSON; o n8n faz chunk + embedding e indexa o
+ * documento para a busca do chat.
+ */
+export async function uploadCct(file: File, signal?: AbortSignal): Promise<string> {
+  if (!INGEST_WEBHOOK_URL) {
+    throw new WebhookError(
+      "VITE_INGEST_WEBHOOK_URL nao configurada. Preencha a URL do webhook de ingestao no .env.",
+    );
+  }
+
+  const content = await file.text();
+  const res = await fetch(INGEST_WEBHOOK_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ filename: file.name, content }),
+    signal,
+  });
+  if (!res.ok) {
+    throw new WebhookError(`O n8n respondeu com status ${res.status}.`);
+  }
+
+  const raw = await res.text();
+  if (!raw) return "Arquivo enviado.";
+  try {
+    const data = JSON.parse(raw);
+    return extractReply(data) ?? (data?.status as string) ?? "Arquivo enviado.";
+  } catch {
+    return raw;
+  }
+}
 
 /**
  * Envia uma mensagem ao webhook de chat do n8n e devolve a resposta de texto.

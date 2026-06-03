@@ -2,18 +2,17 @@ import { useEffect, useRef, useState } from "react";
 import { MessageBubble } from "./MessageBubble";
 import { ChatInput } from "./ChatInput";
 import { sendMessage, WebhookError } from "../api";
-import { getUserId } from "../user";
 import type { Message } from "../types";
 
 function makeId(): string {
   return `${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`;
 }
 
-export function ChatView() {
+/** chatId identifica a conversa (sessionId no n8n). Trocar de chatId = chat limpo. */
+export function ChatView({ chatId }: { chatId: string }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const userId = useRef(getUserId());
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -27,7 +26,7 @@ export function ChatView() {
     setLoading(true);
 
     try {
-      const reply = await sendMessage({ message: text, sessionId: userId.current });
+      const reply = await sendMessage({ message: text, sessionId: chatId });
       setMessages((prev) => [
         ...prev,
         {

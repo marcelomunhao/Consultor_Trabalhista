@@ -1,0 +1,77 @@
+import { useState, type FormEvent, type ReactNode } from "react";
+import { authEnabled, getCurrentUser, login } from "../auth";
+
+/**
+ * Bloqueia o app atras de uma tela de login quando a autenticacao esta
+ * configurada (VITE_AUTH_USERS / VITE_AUTH_PASSWORD). Caso contrario, libera.
+ */
+export function LoginGate({ children }: { children: (email: string | null) => ReactNode }) {
+  const [user, setUser] = useState<string | null>(() => getCurrentUser());
+
+  if (!authEnabled() || user) {
+    return <>{children(user)}</>;
+  }
+
+  return <LoginForm onSuccess={setUser} />;
+}
+
+function LoginForm({ onSuccess }: { onSuccess: (email: string) => void }) {
+  const [email, setEmail] = useState("");
+  const [senha, setSenha] = useState("");
+  const [erro, setErro] = useState<string | null>(null);
+
+  function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    const r = login(email, senha);
+    if (r.ok) onSuccess(email.trim().toLowerCase());
+    else setErro(r.erro ?? "Falha no login.");
+  }
+
+  return (
+    <div className="flex h-full items-center justify-center bg-gradient-to-b from-[#eef6fb] to-[#dcecf4] p-4">
+      <form
+        onSubmit={handleSubmit}
+        className="w-full max-w-sm rounded-2xl border border-[#cfe3ec] bg-white p-6 shadow-xl"
+      >
+        <div className="mb-5 flex items-center gap-2">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#347891] font-bold text-white">
+            T
+          </div>
+          <div>
+            <h1 className="text-sm font-semibold text-[#183844]">Assistente Trabalhista</h1>
+            <p className="text-xs text-[#629bb5]">Acesso restrito</p>
+          </div>
+        </div>
+
+        <label className="mb-1 block text-xs font-medium text-[#347891]">E-mail</label>
+        <input
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          autoComplete="username"
+          required
+          className="mb-3 w-full rounded-lg border border-[#cfe3ec] bg-[#f2fafd] px-3 py-2 text-sm text-[#183844] outline-none focus:border-[#347891] focus:ring-2 focus:ring-[#347891]/20"
+        />
+
+        <label className="mb-1 block text-xs font-medium text-[#347891]">Senha</label>
+        <input
+          type="password"
+          value={senha}
+          onChange={(e) => setSenha(e.target.value)}
+          autoComplete="current-password"
+          required
+          className="mb-4 w-full rounded-lg border border-[#cfe3ec] bg-[#f2fafd] px-3 py-2 text-sm text-[#183844] outline-none focus:border-[#347891] focus:ring-2 focus:ring-[#347891]/20"
+        />
+
+        {erro && <p className="mb-3 text-xs text-red-600">{erro}</p>}
+
+        <button
+          type="submit"
+          className="w-full rounded-lg bg-[#347891] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[#2c6478]"
+        >
+          Entrar
+        </button>
+      </form>
+    </div>
+  );
+}
