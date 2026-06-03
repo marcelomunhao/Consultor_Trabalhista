@@ -41,7 +41,9 @@ export function ChatInput({ disabled, onSend, hero = false }: ChatInputProps) {
         onKeyDown={handleKeyDown}
         rows={hero ? 2 : 1}
         placeholder="Escreva sua mensagem..."
-        className="max-h-40 flex-1 resize-none rounded-xl border border-[#cfe0e9] bg-[#f4fafd] px-3.5 py-2.5 text-sm text-[#0f2b35] outline-none placeholder:text-[#7da7b8] focus:border-[#0e7490] focus:ring-2 focus:ring-[#0e7490]/25"
+        className={`max-h-40 flex-1 resize-none rounded-xl border border-[#cfe0e9] bg-[#f4fafd] px-3.5 py-2.5 text-sm text-[#0f2b35] outline-none placeholder:text-[#7da7b8] focus:border-[#0e7490] focus:ring-2 focus:ring-[#0e7490]/25 ${
+          hero ? "min-h-[78px]" : "min-h-[52px]"
+        }`}
       />
       <button
         type="submit"
