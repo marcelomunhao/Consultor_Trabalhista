@@ -41,9 +41,10 @@ Instaladas via `npm install` (definidas em `package.json`):
 copy .env.example .env
 ```
 
-| Variável               | Obrigatória | Descrição                                   |
-| ---------------------- | ----------- | ------------------------------------------- |
-| `VITE_N8N_WEBHOOK_URL` | Sim         | URL do webhook do n8n (recebe/responde o chat). |
+| Variável                | Obrigatória | Descrição                                        |
+| ----------------------- | ----------- | ------------------------------------------------ |
+| `VITE_N8N_WEBHOOK_URL`  | Sim         | Webhook de chat do n8n (recebe/responde o chat). |
+| `VITE_DOCS_WEBHOOK_URL` | Sim         | Webhook de documentos (aba Vencimentos).         |
 
 ## Backend (n8n)
 

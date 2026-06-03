@@ -1,22 +1,29 @@
 # Trabalhista
 
-Frontend de chat para um assistente trabalhista. O **backend é um workflow do
-n8n**: o frontend envia as mensagens via webhook e recebe a resposta pelo node
-*Respond to Webhook*. Não há servidor próprio neste repositório.
+Frontend de um assistente de **Departamento Pessoal** (CLT e convenções coletivas).
+Duas abas:
+
+- **Assistente** — chat com IA. Cada usuário tem um UUID estável (localStorage)
+  enviado como `sessionId`, então o backend responde e memoriza por pessoa
+  (suporta ~10 usuários simultâneos).
+- **Vencimentos** — lista as CCTs/documentos **vencidos** e **a vencer** (30 dias).
+
+O **backend é n8n** (via webhooks) + **Supabase** (Postgres). Não há servidor
+próprio neste repositório. Contrato completo em [`docs/n8n-webhook.md`](docs/n8n-webhook.md).
 
 ## Stack
 
-- **React 19 + TypeScript** (Vite)
-- **Tailwind CSS v4** (plugin oficial do Vite)
-- Backend: **n8n** (externo, via webhook) — ver [`docs/n8n-webhook.md`](docs/n8n-webhook.md)
+- **React 19 + TypeScript** (Vite) · **Tailwind CSS v4**
+- Backend: **n8n** (2 webhooks) + **Supabase/Postgres** (`dp_assistant.documentos`, `dp_chat_memory`)
 
 ## Arquitetura
 
 ```
 Browser (React/Vite)
-  → POST {VITE_N8N_WEBHOOK_URL}   body: { message, sessionId }
-  → n8n: Webhook → (processamento) → Respond to Webhook
-  → Browser renderiza a resposta no chat
+  ├─ Assistente  → POST /webhook/trabalhista-chat        { message, sessionId } → { reply }
+  │                  n8n: Webhook → AI Agent (Claude + memória + busca RAG) → Respond
+  └─ Vencimentos → GET  /webhook/trabalhista-documentos  → [ { ...vigencia_ate } ]
+                     n8n: Webhook → Postgres (dp_assistant.documentos) → Respond
 ```
 
 ## Como rodar
@@ -25,10 +32,11 @@ Pré-requisitos: Node 20+.
 
 ```bash
 npm install
-cp .env.example .env       # no Windows: copy .env.example .env
-# edite .env e preencha VITE_N8N_WEBHOOK_URL com a URL do seu webhook n8n
+cp .env.example .env       # Windows: copy .env.example .env  (ou rode start.bat)
 npm run dev                # http://localhost:5180
 ```
+
+O `.env.example` já vem com as URLs de produção dos webhooks.
 
 ### Scripts
 
@@ -41,9 +49,10 @@ npm run dev                # http://localhost:5180
 
 ## Variáveis de ambiente
 
-| Variável                | Descrição                                            |
-| ----------------------- | ---------------------------------------------------- |
-| `VITE_N8N_WEBHOOK_URL`  | URL do webhook do n8n que recebe e responde o chat. |
+| Variável                | Descrição                                              |
+| ----------------------- | ------------------------------------------------------ |
+| `VITE_N8N_WEBHOOK_URL`  | Webhook de chat (POST `{message, sessionId}`→`{reply}`). |
+| `VITE_DOCS_WEBHOOK_URL` | Webhook de documentos (GET → array com vigências).     |
 
 Variáveis `VITE_*` vão para o bundle do navegador — não coloque segredos aqui.
 
@@ -51,21 +60,25 @@ Variáveis `VITE_*` vão para o bundle do navegador — não coloque segredos aq
 
 ```
 .
-├── docs/
-│   └── n8n-webhook.md      # contrato do backend n8n (request/response, CORS)
+├── docs/n8n-webhook.md     # contrato dos 2 webhooks (chat e documentos) + CORS
 ├── src/
-│   ├── api.ts              # cliente do webhook (envio + parsing flexível da resposta)
-│   ├── types.ts            # tipos de mensagem e payload
-│   ├── App.tsx             # tela de chat (estado, sessão, loading, erro)
+│   ├── api.ts              # sendMessage() + fetchDocumentos()
+│   ├── user.ts             # UUID estável por navegador (localStorage)
+│   ├── vigencia.ts         # agrupamento vencidos / a vencer + formatação
+│   ├── types.ts            # Message, WebhookRequest, Documento
+│   ├── App.tsx             # shell com abas (Assistente | Vencimentos)
 │   └── components/
+│       ├── ChatView.tsx        # chat (estado, sessão, loading, erro)
+│       ├── ChatInput.tsx
 │       ├── MessageBubble.tsx
-│       └── ChatInput.tsx
+│       └── DocumentosPanel.tsx  # lista de vencimentos
 ├── .env.example
 └── vite.config.ts
 ```
 
-## Próximos passos sugeridos
+## Notas de segurança
 
-- Subir o workflow n8n correspondente e versionar o export em `docs/` ou `n8n/`.
-- Tratar streaming/respostas longas, se o backend evoluir para isso.
-- Histórico persistente de conversa (hoje vive só na sessão da aba).
+- Os webhooks estão com CORS `*` e **sem autenticação**. O de chat aciona um LLM —
+  considere proteger (header/token) antes de expor publicamente.
+- A tabela `dp_chat_memory` (Supabase) está com **RLS desabilitado**. Avalie ligar
+  RLS com políticas (ex.: liberar só ao `service_role` usado pelo n8n).

@@ -1,60 +1,74 @@
-# Contrato do backend (n8n)
+# Backend n8n — contrato dos webhooks
 
-O frontend fala com um workflow do **n8n** via webhook. Não há código de backend
-neste repositório — apenas o contrato que o workflow precisa respeitar.
+O frontend fala com **dois webhooks** de workflows n8n. Não há backend próprio
+neste repositório — só o contrato que os workflows respeitam.
 
-## Fluxo
+Base do n8n: `https://webhook.vps.central-rnc.com.br`
+(produção: `/webhook/<path>` — teste no editor: `/webhook-test/<path>`)
 
-```
-Frontend (React)
-  → POST {VITE_N8N_WEBHOOK_URL}
-      body JSON: { "message": string, "sessionId": string }
-  → n8n: node Webhook (HTTP POST, Respond = "Using Respond to Webhook node")
-      → ...processamento (AI Agent, regras, consulta, etc.)
-      → node Respond to Webhook
-  → Frontend recebe a resposta e renderiza no chat
-```
+| Aba do front | Workflow n8n | ID | Webhook (produção) |
+|---|---|---|---|
+| Assistente | `DP_Trabalhista_Chat_API` | `bCc1WDoYsIQuiTk6` | `POST /webhook/trabalhista-chat` |
+| Vencimentos | `DP_Trabalhista_Documentos_API` | `oWeYx5xN0JKqHvBJ` | `GET /webhook/trabalhista-documentos` |
 
-## Request (frontend → n8n)
+---
 
-`Content-Type: application/json`
+## 1. Chat — `POST /webhook/trabalhista-chat`
 
+Fluxo: `Webhook → AI Agent (Claude + memória Postgres + tool buscar_norma_trabalhista) → Respond to Webhook`.
+
+**Request** (`application/json`):
 ```json
-{
-  "message": "Qual o piso salarial da categoria X?",
-  "sessionId": "abc123-def456"
-}
+{ "message": "Qual o prazo de pagamento da rescisão sem justa causa?", "sessionId": "uuid-do-usuario" }
+```
+- `sessionId`: UUID estável por navegador (gerado no front, `localStorage`). O n8n
+  usa como chave da **memória de conversa** (tabela `dp_chat_memory`), então cada
+  usuário tem histórico e resposta individuais — suporta os ~10 simultâneos.
+
+**Response**:
+```json
+{ "reply": "## Resposta direta\n..." }
 ```
 
-- `message`: texto digitado pelo usuário.
-- `sessionId`: identifica a conversa (persistente enquanto a aba estiver aberta).
-  Use no n8n para manter memória/contexto por sessão.
+O agente é a versão "API" do `DP_Trabalhista_Agente` (Chat Trigger): mesmo modelo
+(Claude Sonnet), mesma memória (`dp_chat_memory`) e a mesma ferramenta de busca
+RAG (`DP_Trabalhista_SubBusca`). Se você ajustar o prompt em um, sincronize o outro.
 
-## Response (n8n → frontend)
+---
 
-O node **Respond to Webhook** pode devolver de várias formas. O frontend
-(`src/api.ts`) aceita qualquer uma destas:
+## 2. Documentos — `GET /webhook/trabalhista-documentos`
 
-1. **Texto puro** — `Respond With: Text`, corpo = a resposta.
-2. **JSON** com um dos campos: `reply`, `output`, `text`, `message`, `answer`,
-   `response`. Ex.:
-   ```json
-   { "reply": "O piso é R$ 1.800,00." }
-   ```
-   (Útil porque o node *AI Agent* costuma emitir `output`.)
-3. **Array de items do n8n** — ex. `[{ "json": { "output": "..." } }]`. O frontend
-   percorre e extrai o primeiro campo de texto que encontrar.
+Fluxo: `Webhook → Postgres (SELECT em dp_assistant.documentos) → Respond to Webhook`.
 
-## Configuração do node Webhook
+**Response**: array de documentos com vigência preenchida (`vigencia_ate IS NOT NULL`),
+ordenados por data final:
+```json
+[
+  {
+    "id": "uuid",
+    "titulo": "2025-CCT_Sinpro_2025-2026_pdf",
+    "tipo": "CCT",
+    "sindicato": "SINPRO/ES",
+    "base": "ES",
+    "vigencia_de": "2025-03-01",
+    "vigencia_ate": "2026-02-28"
+  }
+]
+```
 
-- **HTTP Method:** POST
-- **Path:** ex. `trabalhista-chat`
-- **Respond:** `Using 'Respond to Webhook' node`
-- **CORS:** habilite o domínio do frontend (ou `*` em desenvolvimento) em
-  *Allowed Origins*, senão o navegador bloqueia a chamada.
+O frontend (`src/vigencia.ts`) agrupa em **vencidos** (`vigencia_ate < hoje`) e
+**a vencer** (próximos 30 dias). `tipo`/`sindicato`/`base` vêm do `metadata` (jsonb).
 
-## CORS — atenção
+---
 
-Como o frontend é uma SPA no navegador, o n8n precisa devolver os headers
-`Access-Control-Allow-Origin` (e responder ao preflight `OPTIONS`). Configure isso
-no node Webhook; sem CORS as requisições falham mesmo com o workflow correto.
+## CORS
+
+Ambos os webhooks têm *Allowed Origins* = `*` no node Webhook e devolvem
+`Access-Control-Allow-Origin: *` no Respond to Webhook. Em produção, restrinja ao
+domínio do frontend.
+
+## Origem dos dados de vigência
+
+`dp_assistant.documentos.vigencia_de/ate` e `metadata` foram populados a partir de
+`pdfs/MD/vigencias.json` (gerado pelo pipeline de OCR das CCTs). Para atualizar
+quando entrarem novas CCTs, rode a ingestão e reaplique o backfill de vigência.
