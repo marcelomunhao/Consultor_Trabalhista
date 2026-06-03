@@ -163,8 +163,8 @@ export async function sendMessageStream(
  */
 function sanitizeResposta(s: string): string {
   return s
-    .replace(/Calling\s+\S+\s+with input:\s*\{[^}]*\}/g, "")
-    .replace(/Calling\s+\S+\s+with input:\s*\{[^}]*$/g, "")
+    .replace(/Calling\s+\S+\s+with input:\s*\{[^}]*\}/g, "") // tool-calls completos
+    .replace(/Calling\s+[\s\S]*$/, "") // rastro de tool-call em progresso (no fim)
     .replace(/^\s+/, "");
 }
 

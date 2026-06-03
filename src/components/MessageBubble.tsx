@@ -24,7 +24,7 @@ function MessageBubbleBase({ message }: { message: Message }) {
       ) : message.content ? (
         <Markdown>{message.content}</Markdown>
       ) : (
-        <TypingDots />
+        <Pensando />
       )}
       {(isUser || message.content) && (
         <span className={`mt-1.5 block text-[10px] ${isUser ? "text-cyan-100/80" : "text-[#5b8497]"}`}>
@@ -37,16 +37,19 @@ function MessageBubbleBase({ message }: { message: Message }) {
 
 export const MessageBubble = memo(MessageBubbleBase);
 
-function TypingDots() {
+function Pensando() {
   return (
-    <span className="flex gap-1 py-1">
-      {["0s", "0.15s", "0.3s"].map((d) => (
-        <span
-          key={d}
-          className="inline-block h-2 w-2 animate-bounce rounded-full bg-[#629bb5]"
-          style={{ animationDelay: d }}
-        />
-      ))}
+    <span className="flex items-center gap-2 py-0.5 text-[#5b8497]">
+      <span className="animate-pulse font-medium">Pensando</span>
+      <span className="flex gap-1">
+        {["0s", "0.15s", "0.3s"].map((d) => (
+          <span
+            key={d}
+            className="inline-block h-1.5 w-1.5 animate-bounce rounded-full bg-[#629bb5]"
+            style={{ animationDelay: d }}
+          />
+        ))}
+      </span>
     </span>
   );
 }
