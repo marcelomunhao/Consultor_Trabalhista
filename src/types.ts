@@ -8,9 +8,23 @@ export interface Message {
   at: number;
 }
 
-/** Payload enviado ao webhook do n8n. */
+/** Payload enviado ao webhook de chat do n8n. */
 export interface WebhookRequest {
   message: string;
-  /** Identifica a conversa para o n8n manter contexto/memoria por sessao. */
+  /** UUID do usuario — o n8n usa para responder/lembrar de forma individual. */
   sessionId: string;
 }
+
+/** Documento (CCT/ACT/Aditivo/etc.) vindo do webhook de vencimentos. */
+export interface Documento {
+  id: string;
+  titulo: string;
+  tipo: string | null;
+  sindicato: string | null;
+  base: string | null;
+  /** Datas ISO (YYYY-MM-DD) ou null. */
+  vigencia_de: string | null;
+  vigencia_ate: string | null;
+}
+
+export type SituacaoVigencia = "vencido" | "a_vencer" | "em_dia" | "sem_data";
