@@ -28,13 +28,13 @@ function LoginForm({ onSuccess }: { onSuccess: (email: string) => void }) {
   }
 
   return (
-    <div className="flex h-full items-center justify-center bg-gradient-to-b from-[#eef6fb] to-[#dcecf4] p-4">
+    <div className="flex h-full items-center justify-center bg-gradient-to-br from-[#0c272f] via-[#0e3a47] to-[#0e7490] p-4">
       <form
         onSubmit={handleSubmit}
         className="w-full max-w-sm rounded-2xl border border-[#cfe3ec] bg-white p-6 shadow-xl"
       >
         <div className="mb-5 flex items-center gap-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#347891] font-bold text-white">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#0e7490] font-bold text-white">
             T
           </div>
           <div>
@@ -43,31 +43,31 @@ function LoginForm({ onSuccess }: { onSuccess: (email: string) => void }) {
           </div>
         </div>
 
-        <label className="mb-1 block text-xs font-medium text-[#347891]">E-mail</label>
+        <label className="mb-1 block text-xs font-medium text-[#0e7490]">E-mail</label>
         <input
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           autoComplete="username"
           required
-          className="mb-3 w-full rounded-lg border border-[#cfe3ec] bg-[#f2fafd] px-3 py-2 text-sm text-[#183844] outline-none focus:border-[#347891] focus:ring-2 focus:ring-[#347891]/20"
+          className="mb-3 w-full rounded-lg border border-[#cfe3ec] bg-[#f2fafd] px-3 py-2 text-sm text-[#183844] outline-none focus:border-[#0e7490] focus:ring-2 focus:ring-[#0e7490]/20"
         />
 
-        <label className="mb-1 block text-xs font-medium text-[#347891]">Senha</label>
+        <label className="mb-1 block text-xs font-medium text-[#0e7490]">Senha</label>
         <input
           type="password"
           value={senha}
           onChange={(e) => setSenha(e.target.value)}
           autoComplete="current-password"
           required
-          className="mb-4 w-full rounded-lg border border-[#cfe3ec] bg-[#f2fafd] px-3 py-2 text-sm text-[#183844] outline-none focus:border-[#347891] focus:ring-2 focus:ring-[#347891]/20"
+          className="mb-4 w-full rounded-lg border border-[#cfe3ec] bg-[#f2fafd] px-3 py-2 text-sm text-[#183844] outline-none focus:border-[#0e7490] focus:ring-2 focus:ring-[#0e7490]/20"
         />
 
         {erro && <p className="mb-3 text-xs text-red-600">{erro}</p>}
 
         <button
           type="submit"
-          className="w-full rounded-lg bg-[#347891] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[#2c6478]"
+          className="w-full rounded-lg bg-[#0e7490] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[#0c5d72]"
         >
           Entrar
         </button>

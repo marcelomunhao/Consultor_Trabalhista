@@ -27,7 +27,7 @@ function Workspace({ email }: { email: string | null }) {
   }
 
   return (
-    <div className="flex h-full bg-[#f2fafd]">
+    <div className="flex h-full bg-white">
       <Sidebar
         view={view}
         onSelectView={setView}

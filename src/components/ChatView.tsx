@@ -8,6 +8,13 @@ function makeId(): string {
   return `${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`;
 }
 
+const SUGESTOES = [
+  "Prazo de pagamento da rescisão sem justa causa",
+  "Como calcular o adicional noturno",
+  "Regras do aviso prévio",
+  "Piso salarial da categoria",
+];
+
 /** chatId identifica a conversa (sessionId no n8n). Trocar de chatId = chat limpo. */
 export function ChatView({ chatId }: { chatId: string }) {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -47,22 +54,53 @@ export function ChatView({ chatId }: { chatId: string }) {
     }
   }
 
+  // Tela inicial: input centralizado, estilo claude.ai.
+  if (messages.length === 0 && !loading) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center px-4">
+        <div className="w-full max-w-2xl">
+          <div className="mb-7 text-center">
+            <h2 className="text-3xl font-bold tracking-tight text-[#0f2b35]">
+              Assistente Trabalhista
+            </h2>
+            <p className="mt-2 text-base text-[#3f6f81]">Como posso ajudar você hoje?</p>
+          </div>
+
+          {error && (
+            <div className="mb-3 rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {error}
+            </div>
+          )}
+
+          <ChatInput disabled={loading} onSend={handleSend} hero />
+
+          <div className="mt-4 flex flex-wrap justify-center gap-2">
+            {SUGESTOES.map((s) => (
+              <button
+                key={s}
+                onClick={() => handleSend(s)}
+                className="rounded-full border border-[#bcd7e3] bg-white px-3.5 py-1.5 text-sm text-[#1a5366] shadow-sm transition hover:border-[#0e7490] hover:bg-[#eaf6fb] hover:text-[#0e7490]"
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Conversa em andamento: mensagens + input fixo embaixo.
   return (
     <div className="flex h-full flex-col">
       <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-5">
-        {messages.length === 0 && !loading && (
-          <div className="mt-10 text-center text-sm text-[#629bb5]">
-            Envie uma mensagem para comecar a conversa.
-          </div>
-        )}
-
         {messages.map((m) => (
           <MessageBubble key={m.id} message={m} />
         ))}
 
         {loading && (
           <div className="flex justify-start">
-            <div className="rounded-2xl rounded-bl-sm border border-[#d7e8f0] bg-white px-4 py-3 shadow-sm">
+            <div className="rounded-2xl rounded-bl-sm border border-[#cfe0e9] bg-white px-4 py-3 shadow-sm">
               <span className="flex gap-1">
                 <Dot /> <Dot delay="0.15s" /> <Dot delay="0.3s" />
               </span>
@@ -85,7 +123,7 @@ export function ChatView({ chatId }: { chatId: string }) {
 function Dot({ delay = "0s" }: { delay?: string }) {
   return (
     <span
-      className="inline-block h-2 w-2 animate-bounce rounded-full bg-[#629bb5]"
+      className="inline-block h-2 w-2 animate-bounce rounded-full bg-[#0e7490]"
       style={{ animationDelay: delay }}
     />
   );

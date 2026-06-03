@@ -41,7 +41,7 @@ export function DocumentosPanel() {
         <button
           onClick={() => carregar()}
           disabled={loading}
-          className="rounded-lg border border-[#cfe3ec] bg-white px-3 py-1.5 text-xs font-medium text-[#347891] transition hover:bg-[#eef6fb] disabled:opacity-50"
+          className="rounded-lg border border-[#cfe3ec] bg-white px-3 py-1.5 text-xs font-medium text-[#0e7490] transition hover:bg-[#eef6fb] disabled:opacity-50"
         >
           {loading ? "Atualizando..." : "Atualizar"}
         </button>
@@ -99,7 +99,7 @@ function Secao({
       <div className="mb-2 flex items-center gap-2">
         <span className={`h-2 w-2 rounded-full ${cores[cor].dot}`} />
         <h3 className="text-sm font-semibold text-[#183844]">{titulo}</h3>
-        <span className="rounded-full bg-[#e6f1f7] px-2 py-0.5 text-xs font-medium text-[#347891]">
+        <span className="rounded-full bg-[#e6f1f7] px-2 py-0.5 text-xs font-medium text-[#0e7490]">
           {docs.length}
         </span>
         <span className="text-xs text-[#9bbccb]">{subtitulo}</span>
@@ -145,7 +145,7 @@ function DocumentoCard({ doc, cor }: { doc: Documento; cor: keyof typeof cores }
         )}
       </div>
       <div className="mt-2 flex items-center justify-between">
-        <span className="text-xs text-[#347891]">
+        <span className="text-xs text-[#0e7490]">
           Vigencia ate <strong>{formatData(doc.vigencia_ate)}</strong>
         </span>
         <span className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${cores[cor].badge}`}>

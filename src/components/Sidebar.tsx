@@ -23,10 +23,10 @@ export function Sidebar({
   onUploaded,
 }: SidebarProps) {
   return (
-    <aside className="flex h-full w-64 shrink-0 flex-col bg-[#12303a] text-[#cfe3ec]">
+    <aside className="flex h-full w-64 shrink-0 flex-col bg-[#0c272f] text-[#cfe3ec]">
       {/* Brand */}
       <div className="flex items-center gap-2 px-4 py-4">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#347891] text-sm font-bold text-white">
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#0e7490] text-sm font-bold text-white">
           T
         </div>
         <span className="text-sm font-semibold text-white">Trabalhista</span>
@@ -36,7 +36,7 @@ export function Sidebar({
       <div className="px-3">
         <button
           onClick={onNewChat}
-          className="flex w-full items-center gap-2 rounded-lg border border-[#2c5663] bg-[#163945] px-3 py-2 text-sm font-medium text-white transition hover:bg-[#1c4654]"
+          className="flex w-full items-center gap-2 rounded-lg bg-[#0e7490] px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#0c5d72]"
         >
           <PlusIcon />
           Novo chat
@@ -103,7 +103,9 @@ function NavItem({
       onClick={onClick}
       className={[
         "flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition",
-        active ? "bg-[#1d4350] text-white" : "text-[#a9c8d5] hover:bg-[#163945] hover:text-white",
+        active
+          ? "bg-[#0e7490] text-white shadow-sm"
+          : "text-[#a9c8d5] hover:bg-[#143540] hover:text-white",
       ].join(" ")}
     >
       {icon}
