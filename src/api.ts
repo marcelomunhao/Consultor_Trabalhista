@@ -88,6 +88,97 @@ export async function sendMessage(req: WebhookRequest, signal?: AbortSignal): Pr
 }
 
 /**
+ * Envia a mensagem e consome a resposta em streaming (NDJSON do n8n: cada linha
+ * e um objeto JSON; tokens vem em {type:"item", content:"..."}). Chama onUpdate
+ * com o texto acumulado a cada token. Retorna o texto final.
+ *
+ * Faz fallback para resposta nao-streaming (JSON {reply} ou texto puro).
+ */
+export async function sendMessageStream(
+  req: WebhookRequest,
+  onUpdate: (full: string) => void,
+  signal?: AbortSignal,
+): Promise<string> {
+  if (!CHAT_WEBHOOK_URL) {
+    throw new WebhookError(
+      "VITE_N8N_WEBHOOK_URL nao configurada. Copie .env.example para .env e preencha a URL do webhook.",
+    );
+  }
+
+  const res = await fetch(CHAT_WEBHOOK_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(req),
+    signal,
+  });
+  if (!res.ok) throw new WebhookError(`O n8n respondeu com status ${res.status}.`);
+  if (!res.body) {
+    const raw = await res.text();
+    const txt = parseNaoStreaming(raw);
+    onUpdate(txt);
+    return txt;
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let full = "";
+
+  const consumirLinha = (linha: string) => {
+    const t = linha.trim();
+    if (!t) return;
+    const piece = parseLinhaStream(t);
+    if (piece) {
+      full += piece;
+      onUpdate(full);
+    }
+  };
+
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let nl: number;
+    while ((nl = buffer.indexOf("\n")) >= 0) {
+      consumirLinha(buffer.slice(0, nl));
+      buffer = buffer.slice(nl + 1);
+    }
+  }
+  consumirLinha(buffer);
+
+  // Se nada foi extraido como stream, tenta interpretar como JSON/texto inteiro.
+  if (!full) {
+    const fallback = parseNaoStreaming(buffer);
+    if (fallback) {
+      onUpdate(fallback);
+      return fallback;
+    }
+  }
+  return full;
+}
+
+/** Extrai o texto de uma linha NDJSON do stream do n8n. */
+function parseLinhaStream(linha: string): string {
+  try {
+    const obj = JSON.parse(linha) as { type?: string; content?: unknown };
+    if (obj.type === "item" && typeof obj.content === "string") return obj.content;
+    return "";
+  } catch {
+    // Linha nao-JSON: trata como token de texto puro.
+    return linha;
+  }
+}
+
+function parseNaoStreaming(raw: string): string {
+  if (!raw) return "";
+  try {
+    return extractReply(JSON.parse(raw)) ?? raw;
+  } catch {
+    return raw;
+  }
+}
+
+/**
  * Busca a lista de documentos (CCTs etc.) com suas vigencias no webhook de
  * vencimentos do n8n. Retorna a lista crua; o agrupamento por situacao
  * (vencido / a vencer) e feito no frontend (ver vigencia.ts).

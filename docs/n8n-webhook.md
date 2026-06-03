@@ -26,10 +26,17 @@ Fluxo: `Webhook → AI Agent (Claude + memória Postgres + tool buscar_norma_tra
   usa como chave da **memória de conversa** (tabela `dp_chat_memory`), então cada
   usuário tem histórico e resposta individuais — suporta os ~10 simultâneos.
 
-**Response**:
-```json
-{ "reply": "## Resposta direta\n..." }
+**Response (streaming):** o webhook está em `responseMode: streaming` e o AI Agent
+com `enableStreaming`. A resposta vem como **NDJSON** (uma linha JSON por evento):
 ```
+{"type":"begin","metadata":{...}}
+{"type":"item","content":"## Resposta"}
+{"type":"item","content":" direta\n..."}
+{"type":"end","metadata":{...}}
+```
+O frontend (`src/api.ts` → `sendMessageStream`) lê o stream, concatena os
+`item.content` e atualiza a bolha token a token. Há fallback para resposta única
+(`{reply}` / texto) caso o streaming esteja desligado.
 
 O agente é a versão "API" do `DP_Trabalhista_Agente` (Chat Trigger): mesmo modelo
 (Claude Sonnet), mesma memória (`dp_chat_memory`) e a mesma ferramenta de busca

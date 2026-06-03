@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { MessageBubble } from "./MessageBubble";
 import { ChatInput } from "./ChatInput";
-import { sendMessage, WebhookError } from "../api";
+import { sendMessageStream, WebhookError } from "../api";
 import type { Message } from "../types";
 
 function makeId(): string {
@@ -29,26 +29,30 @@ export function ChatView({ chatId }: { chatId: string }) {
   async function handleSend(text: string) {
     setError(null);
     const userMsg: Message = { id: makeId(), role: "user", content: text, at: Date.now() };
-    setMessages((prev) => [...prev, userMsg]);
+    const botId = makeId();
+    setMessages((prev) => [
+      ...prev,
+      userMsg,
+      { id: botId, role: "assistant", content: "", at: Date.now() },
+    ]);
     setLoading(true);
 
     try {
-      const reply = await sendMessage({ message: text, sessionId: chatId });
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: makeId(),
-          role: "assistant",
-          content: reply || "(resposta vazia do n8n)",
-          at: Date.now(),
-        },
-      ]);
+      await sendMessageStream({ message: text, sessionId: chatId }, (full) => {
+        setMessages((prev) => prev.map((m) => (m.id === botId ? { ...m, content: full } : m)));
+      });
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === botId && !m.content ? { ...m, content: "(resposta vazia do n8n)" } : m,
+        ),
+      );
     } catch (err) {
       setError(
         err instanceof WebhookError
           ? err.message
           : "Falha ao falar com o backend. Verifique o webhook do n8n.",
       );
+      setMessages((prev) => prev.filter((m) => m.id !== botId));
     } finally {
       setLoading(false);
     }
@@ -98,16 +102,6 @@ export function ChatView({ chatId }: { chatId: string }) {
           {messages.map((m) => (
             <MessageBubble key={m.id} message={m} />
           ))}
-
-          {loading && (
-            <div className="flex justify-start">
-              <div className="rounded-2xl rounded-bl-sm border border-[#cfe0e9] bg-white px-4 py-3 shadow-sm">
-                <span className="flex gap-1">
-                  <Dot /> <Dot delay="0.15s" /> <Dot delay="0.3s" />
-                </span>
-              </div>
-            </div>
-          )}
         </div>
       </div>
 
@@ -123,14 +117,5 @@ export function ChatView({ chatId }: { chatId: string }) {
         <ChatInput disabled={loading} onSend={handleSend} />
       </div>
     </div>
-  );
-}
-
-function Dot({ delay = "0s" }: { delay?: string }) {
-  return (
-    <span
-      className="inline-block h-2 w-2 animate-bounce rounded-full bg-[#0e7490]"
-      style={{ animationDelay: delay }}
-    />
   );
 }
