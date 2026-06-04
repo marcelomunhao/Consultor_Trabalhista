@@ -34,7 +34,16 @@ function MessageBubbleBase({ message }: { message: Message }) {
         ].join(" ")}
       >
         {isUser ? (
-          <span className="whitespace-pre-wrap">{message.content}</span>
+          <>
+            {message.image && (
+              <img
+                src={message.image}
+                alt="Imagem enviada"
+                className="mb-2 max-h-64 w-auto rounded-lg border border-white/25"
+              />
+            )}
+            {message.content && <span className="whitespace-pre-wrap">{message.content}</span>}
+          </>
         ) : texto ? (
           <Markdown>{texto}</Markdown>
         ) : (

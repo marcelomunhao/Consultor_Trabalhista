@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { MessageBubble } from "./MessageBubble";
-import { ChatInput } from "./ChatInput";
+import { ChatInput, type ImagemAnexada } from "./ChatInput";
 import { sendMessageStream, shareChat, WebhookError } from "../api";
 import { extrairVigencias } from "../vigencia";
 import type { Message } from "../types";
@@ -79,9 +79,15 @@ export function ChatView({ chatId, title, messages, onMessagesChange }: ChatView
     rafRef.current = requestAnimationFrame(tick);
   }
 
-  async function handleSend(text: string) {
+  async function handleSend(text: string, image?: ImagemAnexada) {
     setError(null);
-    const userMsg: Message = { id: makeId(), role: "user", content: text, at: Date.now() };
+    const userMsg: Message = {
+      id: makeId(),
+      role: "user",
+      content: text,
+      at: Date.now(),
+      image: image?.dataUrl,
+    };
     const botId = makeId();
     onMessagesChange((prev) => [
       ...prev,
@@ -92,7 +98,14 @@ export function ChatView({ chatId, title, messages, onMessagesChange }: ChatView
     animar(botId);
 
     try {
-      const final = await sendMessageStream({ message: text, sessionId: chatId }, (full) => {
+      const req = {
+        message: text || (image ? "Analise a imagem anexada e responda." : ""),
+        sessionId: chatId,
+        ...(image
+          ? { image_base64: image.dataUrl.split(",")[1] ?? "", image_mime: image.mime }
+          : {}),
+      };
+      const final = await sendMessageStream(req, (full) => {
         targetRef.current = full; // so atualiza o buffer; a animacao exibe
       });
       const texto = final || "(resposta vazia do n8n)";
