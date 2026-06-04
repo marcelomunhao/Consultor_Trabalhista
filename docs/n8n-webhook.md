@@ -44,6 +44,22 @@ O agente é a versão "API" do `DP_Trabalhista_Agente` (Chat Trigger): mesmo mod
 (Claude Sonnet), mesma memória (`dp_chat_memory`) e a mesma ferramenta de busca
 RAG (`DP_Trabalhista_SubBusca`). Se você ajustar o prompt em um, sincronize o outro.
 
+**Vigência das fontes:** a função `dp_assistant.match_documents` devolve `vigencia_de`/
+`vigencia_ate` no `metadata` (e só retorna material vigente — `vigencia_ate >= hoje`).
+O `DP_Trabalhista_SubBusca` formata, por trecho, a janela de vigência + status e uma
+linha `LINHA_VIGENCIA: VIG|fonte|de_iso|ate_iso`. O agente declara a vigência nas
+"Ressalvas" e anexa ao **final da resposta** um bloco técnico:
+```
+<vigencia>
+VIG|Art. 477 - CLT|1943-11-10|
+VIG|CCT SINPRO/ES 2025-2026|2025-03-01|2026-02-28
+</vigencia>
+```
+Uma linha por fonte citada (`ate` vazio = norma sem prazo, ex.: CLT). O frontend
+(`src/vigencia.ts` → `extrairVigencias`) extrai esse bloco, **esconde** do texto e
+renderiza um selo colorido por fonte (verde = em vigência, âmbar = a vencer ≤30 dias,
+vermelho = vencida) em `MessageBubble`.
+
 ---
 
 ## 2. Documentos — `GET /webhook/trabalhista-documentos`

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { MessageBubble } from "./MessageBubble";
 import { ChatInput } from "./ChatInput";
 import { sendMessageStream, shareChat, WebhookError } from "../api";
+import { extrairVigencias } from "../vigencia";
 import type { Message } from "../types";
 
 function makeId(): string {
@@ -95,7 +96,9 @@ export function ChatView({ chatId, title, messages, onMessagesChange }: ChatView
         targetRef.current = full; // so atualiza o buffer; a animacao exibe
       });
       const texto = final || "(resposta vazia do n8n)";
-      targetRef.current = texto;
+      // Armazena o texto completo (com o bloco <vigencia>) p/ o MessageBubble montar
+      // os selos; a animacao revela apenas o texto limpo, sem o rodape tecnico.
+      targetRef.current = extrairVigencias(texto).texto;
       onMessagesChange((prev) => prev.map((m) => (m.id === botId ? { ...m, content: texto } : m)));
       doneRef.current = true; // a animacao termina de revelar e limpa o streamingId
     } catch (err) {

@@ -161,10 +161,23 @@ export async function sendMessageStream(
   const consumirLinha = (linha: string) => {
     const t = linha.trim();
     if (!t) return;
+    // Evento de erro do agente/n8n (ex.: rate limit da Anthropic): surfaça em vez
+    // de deixar a resposta vir vazia.
+    if (t.startsWith("{")) {
+      try {
+        const obj = JSON.parse(t) as { type?: string; content?: unknown };
+        if (obj.type === "error") {
+          throw new WebhookError(mensagemErroAgente(typeof obj.content === "string" ? obj.content : ""));
+        }
+      } catch (e) {
+        if (e instanceof WebhookError) throw e;
+        // JSON invalido: segue como token de texto normal abaixo
+      }
+    }
     const piece = parseLinhaStream(t);
     if (piece) {
       full += piece;
-      onUpdate(sanitizeResposta(full));
+      onUpdate(sanitizeStream(full));
     }
   };
 
@@ -184,22 +197,52 @@ export async function sendMessageStream(
   if (!full) {
     const fallback = parseNaoStreaming(buffer);
     if (fallback) {
-      onUpdate(fallback);
-      return fallback;
+      onUpdate(sanitizeStream(fallback));
+      return sanitizeFinal(fallback);
     }
   }
-  return sanitizeResposta(full);
+  return sanitizeFinal(full);
+}
+
+/** Traduz a mensagem de erro do agente para algo amigavel ao usuario. */
+function mensagemErroAgente(raw: string): string {
+  if (/rate limit|input tokens per minute|tokens per minute|\b429\b/i.test(raw)) {
+    return "Limite de requisições da IA atingido (tokens por minuto da conta Anthropic). Aguarde alguns segundos e tente novamente — se persistir, é preciso elevar o tier da conta.";
+  }
+  return raw || "O agente retornou um erro ao gerar a resposta.";
 }
 
 /**
- * Remove o rastro de chamadas de ferramenta do agente
- * (ex.: 'Calling buscar_norma_trabalhista with input: {...}') que vaza no stream.
+ * Mostra apenas a resposta final do agente: descarta a narracao e os rastros de
+ * tool-call ('Calling ... with input: {...}') que aparecem ENTRE as buscas.
+ * A resposta final e sempre o texto apos o ultimo tool-call completo.
  */
-function sanitizeResposta(s: string): string {
+function apenasRespostaFinal(s: string): string {
+  const re = /Calling\s+\S+\s+with input:\s*\{[^}]*\}/g;
+  let fim = 0;
+  for (let m = re.exec(s); m; m = re.exec(s)) fim = m.index + m[0].length;
   return s
-    .replace(/Calling\s+\S+\s+with input:\s*\{[^}]*\}/g, "") // tool-calls completos
-    .replace(/Calling\s+[\s\S]*$/, "") // rastro de tool-call em progresso (no fim)
+    .slice(fim)
+    .replace(/Calling\s+[\s\S]*$/, "") // rastro de tool-call incompleto no fim
     .replace(/^\s+/, "");
+}
+
+/**
+ * Exibicao ao vivo: so a resposta final e esconde o bloco <vigencia> de rodape,
+ * inclusive quando ainda esta chegando incompleto (ex.: "...<vige").
+ */
+function sanitizeStream(s: string): string {
+  return apenasRespostaFinal(s)
+    .replace(/\n*<vigencia[\s\S]*$/i, "")
+    .replace(/\n*<v(?:i(?:g(?:e(?:n(?:c(?:i(?:a(?:>)?)?)?)?)?)?)?)?$/i, "");
+}
+
+/**
+ * Valor final/armazenado: tira tool-calls mas PRESERVA o bloco <vigencia>,
+ * que o MessageBubble usa para montar os selos de vigencia.
+ */
+function sanitizeFinal(s: string): string {
+  return apenasRespostaFinal(s);
 }
 
 /** Extrai o texto de uma linha NDJSON do stream do n8n. */

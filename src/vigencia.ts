@@ -43,6 +43,55 @@ export function formatData(iso: string | null): string {
   return d ? dateFmt.format(d) : "—";
 }
 
+/** Uma fonte citada pelo agente, extraida do bloco <vigencia> da resposta. */
+export interface VigenciaFonte {
+  fonte: string;
+  /** Datas ISO (YYYY-MM-DD) ou null. */
+  de: string | null;
+  ate: string | null;
+}
+
+export type VigenciaBadge = "vigente" | "a_vencer" | "vencida" | "permanente";
+
+/** Status de vigencia de uma fonte (sem data final = norma sem prazo, ex.: CLT). */
+export function badgeStatus(ate: string | null, ref: Date = hoje()): VigenciaBadge {
+  if (!ate) return "permanente";
+  const d = parseData(ate);
+  if (!d) return "permanente";
+  if (d < ref) return "vencida";
+  const limite = new Date(ref);
+  limite.setDate(limite.getDate() + JANELA_DIAS);
+  if (d <= limite) return "a_vencer";
+  return "vigente";
+}
+
+// Bloco tecnico que o agente anexa ao final da resposta (ver system prompt do n8n).
+const VIG_BLOCK = /\n*<vigencia>\s*([\s\S]*?)<\/vigencia>\s*$/i;
+
+/**
+ * Separa o texto da resposta do bloco <vigencia> de rodape. Retorna o texto
+ * limpo (para exibir) e as fontes parseadas (para os selos). Cada linha do bloco
+ * tem o formato `VIG|fonte|de_iso|ate_iso`.
+ */
+export function extrairVigencias(texto: string): { texto: string; fontes: VigenciaFonte[] } {
+  const m = texto.match(VIG_BLOCK);
+  if (!m) return { texto, fontes: [] };
+
+  const fontes: VigenciaFonte[] = [];
+  const vistos = new Set<string>();
+  for (const linha of m[1].split("\n")) {
+    const t = linha.trim();
+    if (!t.startsWith("VIG|")) continue;
+    const [, fonte = "", de = "", ate = ""] = t.split("|");
+    const nome = fonte.trim();
+    if (!nome || vistos.has(nome)) continue;
+    vistos.add(nome);
+    fontes.push({ fonte: nome, de: de.trim() || null, ate: ate.trim() || null });
+  }
+
+  return { texto: texto.replace(VIG_BLOCK, "").trimEnd(), fontes };
+}
+
 export interface DocumentosAgrupados {
   vencidos: Documento[];
   aVencer: Documento[];
