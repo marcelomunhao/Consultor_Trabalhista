@@ -139,69 +139,95 @@ export async function sendMessageStream(
     );
   }
 
-  const res = await fetch(CHAT_WEBHOOK_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(req),
-    signal,
-  });
-  if (!res.ok) throw new WebhookError(`O n8n respondeu com status ${res.status}.`);
-  if (!res.body) {
-    const raw = await res.text();
-    const txt = parseNaoStreaming(raw);
-    onUpdate(txt);
-    return txt;
+  // Rede de seguranca: se nenhum conteudo chegar dentro do tempo limite (conexao
+  // morta / "Pensando" infinito), aborta e lanca erro amigavel em vez de travar.
+  const FIRST_TOKEN_TIMEOUT_MS = 75_000;
+  const stallCtrl = new AbortController();
+  if (signal) {
+    if (signal.aborted) stallCtrl.abort();
+    else signal.addEventListener("abort", () => stallCtrl.abort(), { once: true });
   }
+  let gotContent = false;
+  const stallTimer = setTimeout(() => {
+    if (!gotContent) stallCtrl.abort();
+  }, FIRST_TOKEN_TIMEOUT_MS);
 
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  let full = "";
+  try {
+    const res = await fetch(CHAT_WEBHOOK_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(req),
+      signal: stallCtrl.signal,
+    });
+    if (!res.ok) throw new WebhookError(`O n8n respondeu com status ${res.status}.`);
+    if (!res.body) {
+      const raw = await res.text();
+      const txt = parseNaoStreaming(raw);
+      onUpdate(txt);
+      return txt;
+    }
 
-  const consumirLinha = (linha: string) => {
-    const t = linha.trim();
-    if (!t) return;
-    // Evento de erro do agente/n8n (ex.: rate limit da Anthropic): surfaça em vez
-    // de deixar a resposta vir vazia.
-    if (t.startsWith("{")) {
-      try {
-        const obj = JSON.parse(t) as { type?: string; content?: unknown };
-        if (obj.type === "error") {
-          throw new WebhookError(mensagemErroAgente(typeof obj.content === "string" ? obj.content : ""));
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let full = "";
+
+    const consumirLinha = (linha: string) => {
+      const t = linha.trim();
+      if (!t) return;
+      // Evento de erro do agente/n8n (ex.: rate limit da Anthropic): surfaça em vez
+      // de deixar a resposta vir vazia.
+      if (t.startsWith("{")) {
+        try {
+          const obj = JSON.parse(t) as { type?: string; content?: unknown };
+          if (obj.type === "error") {
+            throw new WebhookError(mensagemErroAgente(typeof obj.content === "string" ? obj.content : ""));
+          }
+        } catch (e) {
+          if (e instanceof WebhookError) throw e;
+          // JSON invalido: segue como token de texto normal abaixo
         }
-      } catch (e) {
-        if (e instanceof WebhookError) throw e;
-        // JSON invalido: segue como token de texto normal abaixo
+      }
+      const piece = parseLinhaStream(t);
+      if (piece) {
+        gotContent = true; // chegou conteudo real -> cancela o timeout de stall
+        full += piece;
+        onUpdate(sanitizeStream(full));
+      }
+    };
+
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let nl: number;
+      while ((nl = buffer.indexOf("\n")) >= 0) {
+        consumirLinha(buffer.slice(0, nl));
+        buffer = buffer.slice(nl + 1);
       }
     }
-    const piece = parseLinhaStream(t);
-    if (piece) {
-      full += piece;
-      onUpdate(sanitizeStream(full));
-    }
-  };
+    consumirLinha(buffer);
 
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    let nl: number;
-    while ((nl = buffer.indexOf("\n")) >= 0) {
-      consumirLinha(buffer.slice(0, nl));
-      buffer = buffer.slice(nl + 1);
+    // Se nada foi extraido como stream, tenta interpretar como JSON/texto inteiro.
+    if (!full) {
+      const fallback = parseNaoStreaming(buffer);
+      if (fallback) {
+        onUpdate(sanitizeStream(fallback));
+        return sanitizeFinal(fallback);
+      }
     }
-  }
-  consumirLinha(buffer);
-
-  // Se nada foi extraido como stream, tenta interpretar como JSON/texto inteiro.
-  if (!full) {
-    const fallback = parseNaoStreaming(buffer);
-    if (fallback) {
-      onUpdate(sanitizeStream(fallback));
-      return sanitizeFinal(fallback);
+    return sanitizeFinal(full);
+  } catch (e) {
+    // Abort por estouro do timeout de stall (nao por cancelamento externo).
+    if (stallCtrl.signal.aborted && !(signal && signal.aborted)) {
+      throw new WebhookError(
+        "A IA demorou demais para responder (sem retorno do servidor). Tente novamente.",
+      );
     }
+    throw e;
+  } finally {
+    clearTimeout(stallTimer);
   }
-  return sanitizeFinal(full);
 }
 
 /** Traduz a mensagem de erro do agente para algo amigavel ao usuario. */
