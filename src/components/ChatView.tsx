@@ -114,6 +114,20 @@ export function ChatView({ chatId, title, messages, onMessagesChange }: ChatView
       targetRef.current = extrairVigencias(texto).texto;
       onMessagesChange((prev) => prev.map((m) => (m.id === botId ? { ...m, content: texto } : m)));
       doneRef.current = true; // a animacao termina de revelar e limpa o streamingId
+
+      // Seguranca: o requestAnimationFrame PAUSA quando a aba esta em segundo
+      // plano; se o usuario sair da aba durante a espera, a bolha poderia ficar
+      // presa no "Pensando" mesmo apos a resposta chegar. Este timer garante que
+      // o conteudo final apareca e o streamingId seja liberado de qualquer forma.
+      window.setTimeout(() => {
+        if (rafRef.current) {
+          cancelAnimationFrame(rafRef.current);
+          rafRef.current = null;
+        }
+        shownRef.current = targetRef.current;
+        setStreamingText(targetRef.current);
+        setStreamingId((cur) => (cur === botId ? null : cur));
+      }, 1500);
     } catch (err) {
       doneRef.current = true;
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
