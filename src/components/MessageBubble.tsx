@@ -27,7 +27,7 @@ function MessageBubbleBase({ message }: { message: Message }) {
     <div className={`flex w-full ${isUser ? "justify-end" : "justify-start"}`}>
       <div
         className={[
-          "rounded-2xl px-4 py-3 text-sm leading-relaxed break-words",
+          "rounded-2xl px-4 py-3 text-[15px] leading-relaxed break-words",
           isUser
             ? "max-w-[80%] bg-[#0e7490] text-white"
             : "w-full border border-[#e0eef5] bg-white text-[#0f2b35]",
