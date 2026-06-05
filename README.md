@@ -167,10 +167,13 @@ on conflict (email) do update set senha_hash = excluded.senha_hash, ativo = true
 -- desativar:         update dp_assistant.usuarios set ativo = false where email = '...';
 ```
 
-#### Esqueci a senha — secrets (SMTP) na Edge Function
+#### Esqueci a senha — envio do e-mail via n8n
 
-A function lê do ambiente: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`,
-`EMAIL_FROM`. Defina-os em **Supabase → Edge Functions → Secrets** (nunca no git).
+A Edge Function **não** envia SMTP direto (o runtime bloqueia TCP). Ela faz POST
+no workflow **`DP_Trabalhista_Email_Reset`** (`/webhook/trabalhista-email-reset`)
+com `{ to, subject, html, link, secret }`; o n8n valida o segredo compartilhado e
+dispara via **SMTP (Gmail)** com a credencial `SMTP account`. O link de reset usa
+o `Origin` da requisição (`<app>/?reset=<token>`).
 
 ### Relação
 
@@ -206,6 +209,7 @@ Cinco workflows. IDs e endpoints:
 | `DP_Trabalhista_Documentos_API` | `oWeYx5xN0JKqHvBJ` | `GET /webhook/trabalhista-documentos` |
 | `DP_Trabalhista_Ingestao_API` | `9wmiEK3TnkTnhdXU` | `POST /webhook/trabalhista-ingest` |
 | `DP_Trabalhista_Share` | `wYq8qu7BgNXUPyhl` | `POST /…/share-save` · `GET /…/share-get?id=` |
+| `DP_Trabalhista_Email_Reset` | `mtQhhnEEmXTKHMVx` | `POST /webhook/trabalhista-email-reset` (interno: chamado pela Edge Function `login`) |
 
 ### 1. Chat — `DP_Trabalhista_Chat_API`
 
