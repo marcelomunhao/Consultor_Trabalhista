@@ -26,6 +26,7 @@ function AuthScreen({ onSuccess }: { onSuccess: (email: string) => void }) {
   const [modo, setModo] = useState<Modo>("login");
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
+  const [senha2, setSenha2] = useState("");
   const [nome, setNome] = useState("");
   const [erro, setErro] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
@@ -36,6 +37,7 @@ function AuthScreen({ onSuccess }: { onSuccess: (email: string) => void }) {
     setErro(null);
     setAviso(null);
     setSenha("");
+    setSenha2("");
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -43,6 +45,10 @@ function AuthScreen({ onSuccess }: { onSuccess: (email: string) => void }) {
     if (carregando) return;
     setErro(null);
     setAviso(null);
+    if (modo === "signup" && senha !== senha2) {
+      setErro("As senhas não conferem.");
+      return;
+    }
     setCarregando(true);
     try {
       if (modo === "login") {
@@ -113,6 +119,21 @@ function AuthScreen({ onSuccess }: { onSuccess: (email: string) => void }) {
               value={senha}
               onChange={(e) => setSenha(e.target.value)}
               autoComplete={modo === "login" ? "current-password" : "new-password"}
+              required
+              minLength={6}
+              className={`${modo === "signup" ? "mb-3" : "mb-4"} ${inputCls}`}
+            />
+          </>
+        )}
+
+        {modo === "signup" && (
+          <>
+            <label className="mb-1 block text-xs font-medium text-[#0e7490]">Confirmar senha</label>
+            <input
+              type="password"
+              value={senha2}
+              onChange={(e) => setSenha2(e.target.value)}
+              autoComplete="new-password"
               required
               minLength={6}
               className={`mb-4 ${inputCls}`}

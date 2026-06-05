@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { adminAprovar, adminListarUsuarios, adminRecusar } from "../auth";
+import { adminAprovar, adminExcluir, adminListarUsuarios, adminRecusar } from "../auth";
+import { ConfirmModal } from "./ConfirmModal";
 
 interface Usuario {
   email: string;
@@ -15,6 +16,7 @@ export function UsuariosPanel() {
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
   const [acao, setAcao] = useState<string | null>(null);
+  const [excluindo, setExcluindo] = useState<Usuario | null>(null);
 
   const carregar = useCallback(async () => {
     setErro(null);
@@ -38,6 +40,14 @@ export function UsuariosPanel() {
     setAcao(email);
     await adminRecusar(email);
     setAcao(null);
+    carregar();
+  }
+  async function excluir(email: string) {
+    setExcluindo(null);
+    setAcao(email);
+    const r = await adminExcluir(email);
+    setAcao(null);
+    if (!r.ok) setErro((r.erro as string) ?? "Falha ao excluir usuário.");
     carregar();
   }
 
@@ -105,16 +115,34 @@ export function UsuariosPanel() {
                     <p className="truncate text-sm text-[#0f2b35]">{u.nome || u.email}</p>
                     <p className="truncate text-xs text-[#5b8497]">{u.email}</p>
                   </div>
-                  {u.is_admin && (
+                  {u.is_admin ? (
                     <span className="shrink-0 rounded-full bg-[#0e7490]/10 px-2 py-0.5 text-[11px] font-medium text-[#0e7490]">
                       admin
                     </span>
+                  ) : (
+                    <button
+                      onClick={() => setExcluindo(u)}
+                      disabled={acao === u.email}
+                      className="shrink-0 rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
+                    >
+                      Excluir
+                    </button>
                   )}
                 </li>
               ))}
             </ul>
           </section>
         </>
+      )}
+
+      {excluindo && (
+        <ConfirmModal
+          title="Excluir usuário"
+          message={`Tem certeza que deseja excluir "${excluindo.nome || excluindo.email}" (${excluindo.email})? O acesso será revogado e esta ação não pode ser desfeita.`}
+          confirmLabel="Excluir"
+          onConfirm={() => excluir(excluindo.email)}
+          onCancel={() => setExcluindo(null)}
+        />
       )}
     </div>
   );

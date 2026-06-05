@@ -77,6 +77,10 @@ export async function adminAprovar(email: string) {
 export async function adminRecusar(email: string) {
   return call({ action: "admin_reject", token: getToken() ?? "", email });
 }
+/** Exclui um usuário (admins não podem ser excluídos — rebaixe antes via SQL). */
+export async function adminExcluir(email: string) {
+  return call({ action: "admin_delete", token: getToken() ?? "", email });
+}
 
 export function logout(): void {
   for (const k of [AUTH_KEY, TOKEN_KEY, ADMIN_KEY, NOME_KEY]) localStorage.removeItem(k);
