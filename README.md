@@ -35,9 +35,16 @@ servidor próprio neste repositório — só o frontend (**React/Vite**).
   por nome** (sindicato, categoria, tipo).
 - **Enviar CCT** — upload de **`.md`** ou **`.pdf`** (PDF passa por **OCR Gemini**
   no n8n) → ingestão (chunk + embedding) → indexado para a busca do chat.
-- **Login** — acesso restrito por e-mail + senha **validados no servidor** (Supabase
-  Edge Function `login`); a senha fica **em hash bcrypt** na tabela
-  `dp_assistant.usuarios`, **nunca no bundle**. Sem `VITE_LOGIN_URL` = acesso livre.
+- **Contas e acesso** — login por e-mail + senha **validados no servidor** (Supabase
+  Edge Function); senha em **hash bcrypt** no banco, **nunca no bundle**.
+  - **Cadastre-se** (com campo de **confirmação de senha**): cria a conta
+    **pendente**, que só entra após aprovação de um administrador.
+  - **Painel "Usuários"** (visível só para admins): **aprovar/recusar** pendentes e
+    **excluir** usuários ativos (com modal de confirmação). **Admins nunca podem ser
+    excluídos** — nem por outro admin, nem a si mesmos.
+  - **Esqueci minha senha**: e-mail real (via n8n/SMTP) com link de redefinição —
+    token de **uso único**, válido por **1 hora**; tela `?reset=` define a nova senha.
+  - Sem `VITE_LOGIN_URL` no `.env` = acesso livre (sem tela de login).
 - **Robustez** — eventos de erro do agente (ex.: rate limit) viram mensagem clara;
   **timeout de 75s** evita "Pensando" infinito; proteção contra a bolha travar se a
   aba perde o foco.
@@ -48,8 +55,9 @@ servidor próprio neste repositório — só o frontend (**React/Vite**).
 
 - **React 19 + TypeScript** (Vite) · **Tailwind CSS v4**
 - **react-markdown** + **remark-gfm** (formatação das respostas)
-- Backend: **n8n** (5 workflows) + **Supabase / Postgres** (schema `dp_assistant`,
-  com **pgvector** e **pgcrypto**) + **Supabase Edge Function** (`login`)
+- Backend: **n8n** (6 workflows) + **Supabase / Postgres** (schema `dp_assistant`,
+  com **pgvector** e **pgcrypto**) + **Supabase Edge Function** (`login` — roteia
+  todas as ações de conta por `{ action }`)
 - IA: **OpenAI `gpt-4.1-mini`** (primário) + **Claude Sonnet 4.5** (fallback) ·
   embeddings **`text-embedding-3-small`** · OCR **Gemini** (ingestão de PDF)
 
@@ -59,8 +67,10 @@ servidor próprio neste repositório — só o frontend (**React/Vite**).
 
 ```
 Browser (React/Vite :5180)
-  ├─ Login       → POST <supabase>/functions/v1/login    { email, senha } → { ok, email }
-  │                  Supabase Edge Function → dp_assistant.verificar_login (bcrypt)
+  ├─ Auth        → POST <supabase>/functions/v1/login    { action, ... }
+  │                  Edge Function: login | signup | forgot | reset | admin_list |
+  │                  admin_approve | admin_reject | admin_delete  → Postgres (bcrypt)
+  │                  forgot → n8n /webhook/trabalhista-email-reset → SMTP Gmail
   ├─ Chat        → POST /webhook/trabalhista-chat        (streaming NDJSON)
   │                  { message, sessionId, image_base64?, image_mime? }
   │                  n8n: Webhook → Preparar Imagem → AI Agent (OpenAI/Claude
@@ -142,17 +152,27 @@ autenticar ações (ex.: painel admin). `expires_at` = 30 dias.
 
 #### Fluxo de acesso
 
-- **Login**: validado na Edge Function (bcrypt no servidor); retorna `is_admin` + um
-  `token` de sessão. A senha **nunca trafega para o navegador**.
-- **Cadastre-se**: cria a conta **pendente** (`ativo=false`). Só entra após aprovação.
-- **Aprovação**: admins (**ti@** e **marcelo@**) veem o painel **Usuários** e
-  aprovam/recusam pendentes. Não-admins não veem esse painel.
-- **Esqueci a senha**: envia um link por e-mail (SMTP) com token; a tela `?reset=`
-  define a nova senha.
+- **Login**: validado na Edge Function (bcrypt no servidor); em caso de sucesso
+  retorna `is_admin` + um **token de sessão** (gravado em `sessions`, 30 dias). A
+  senha **nunca trafega para o navegador**. Conta pendente recebe a mensagem
+  "aguardando aprovação".
+- **Cadastre-se**: formulário com nome, e-mail, senha e **confirmação de senha**
+  (validadas iguais no front; mínimo 6 caracteres no servidor). Cria a conta
+  **pendente** (`ativo=false`) — só entra após aprovação.
+- **Aprovação/Gestão**: admins (**ti@** e **marcelo@**) veem o painel **Usuários**:
+  **aprovar** (ativa) ou **recusar** (remove) pendentes, e **excluir** usuários
+  ativos. **Admins nunca podem ser excluídos** (proteção no servidor) — para
+  remover um admin, rebaixe antes (`is_admin = false`) via SQL. Não-admins não veem
+  o painel.
+- **Esqueci a senha**: gera token de **uso único** (1h) em `password_resets` e envia
+  o link por e-mail (via n8n/SMTP); a tela `?reset=<token>` define a nova senha.
+  A resposta é sempre "ok" (não revela se o e-mail existe).
+- **Bootstrap dos admins**: `ti@` e `marcelo@` foram criados com senha **aleatória
+  irrecuperável** — cada um define a própria senha pelo **"Esqueci minha senha"**.
 
 A Edge Function `login` roteia por `{ action }`: `login`, `signup`, `forgot`,
-`reset`, `admin_list`, `admin_approve`, `admin_reject` (as `admin_*` exigem o token
-de uma sessão cujo usuário seja `is_admin`).
+`reset`, `admin_list`, `admin_approve`, `admin_reject`, `admin_delete` (as
+`admin_*` exigem o token de uma **sessão válida** cujo usuário seja `is_admin`).
 
 #### Gerenciar usuários (SQL no Supabase)
 
@@ -200,7 +220,7 @@ documentos (1) ──< chunks (N)        chunks.documento_id → documentos.id
 
 ## Fluxos no n8n
 
-Cinco workflows. IDs e endpoints:
+Seis workflows. IDs e endpoints:
 
 | Workflow | ID | Endpoint(s) |
 | --- | --- | --- |
@@ -281,6 +301,21 @@ POST /share-save { title, messages } → INSERT shared_chats (expires_at +30d) �
 GET  /share-get?id=  → SELECT (se não expirado) → { title, messages }
 ```
 
+### 6. E-mail de reset de senha — `DP_Trabalhista_Email_Reset`
+
+```
+Webhook (POST /webhook/trabalhista-email-reset, responseMode: responseNode)
+  → Valida e Prepara (Code: confere o SEGREDO compartilhado do body; rejeita
+        chamadas sem ele — evita uso do webhook como relay de spam)
+  → Enviar Email (SMTP Gmail, credencial "SMTP account";
+        from: "Assistente Trabalhista <sistema@central-rnc.com.br>")
+  → Responder ({ ok: true })
+```
+
+Chamado **somente** pela Edge Function `login` (ação `forgot`) com
+`{ secret, to, subject, html, link }`. O link de reset usa o `Origin` da requisição
+do app (`<app>/?reset=<token>`).
+
 ### Credenciais no n8n
 
 | Credencial | Tipo | Usada por |
@@ -288,6 +323,7 @@ GET  /share-get?id=  → SELECT (se não expirado) → { title, messages }
 | `Supabase` | postgres | match_documents, memória, documentos, share, ingest |
 | `Trabalhista` / `OpenAI account` | openAiApi | chat (gpt-4.1-mini) e embeddings |
 | `Anthropic account` | anthropicApi | fallback (Claude Sonnet) |
+| `SMTP account` | smtp | e-mail de reset de senha (Gmail, porta 465/SSL) |
 
 ---
 
@@ -306,6 +342,18 @@ No Windows, o **`start.bat`** instala dependências na 1ª vez, garante o `.env`
 sobe o dev. O Vite escuta na rede (`host: true`), então também é acessível por
 **http://&lt;IP-da-máquina&gt;:5180** (ex.: `http://192.168.0.47:5180`). Se a porta
 estiver ocupada, o Vite usa a próxima livre (5181, 5182…) — **mesma versão**.
+
+### Primeiro acesso
+
+1. **Admins** (`ti@` e `marcelo@`): já existem no banco com senha aleatória — use
+   **"Esqueci minha senha"** na tela de login para receber o link por e-mail e
+   definir a sua senha. Depois disso, entram com o painel **Usuários** habilitado.
+2. **Demais usuários**: clicam em **"Cadastre-se"** (nome, e-mail, senha +
+   confirmação) → a conta fica **pendente** → um admin **aprova** no painel
+   Usuários → pronto, já podem entrar.
+3. **Importante**: o link do e-mail de reset aponta para o endereço que abriu o
+   app (Origin) — peça o reset **a partir do endereço que você usa** (ex.:
+   `http://192.168.0.47:5180`).
 
 ### Scripts
 
@@ -348,10 +396,12 @@ node OCR), **nunca no frontend**.
 │   ├── user.ts               # UUID por navegador + novo chatId
 │   ├── vigencia.ts           # agrupar vencidos/a vencer + extrairVigencias + badgeStatus
 │   ├── types.ts              # Message (com image), WebhookRequest (com image_base64), Documento
-│   ├── App.tsx               # rota ?share=, LoginGate, Workspace (sidebar + main)
+│   ├── App.tsx               # rotas ?share= e ?reset=, LoginGate, Workspace (sidebar + main)
 │   └── components/
-│       ├── Sidebar.tsx           # navegação, lista de chats (⋯ renomear/excluir), upload
-│       ├── LoginGate.tsx         # tela de login / liberação
+│       ├── Sidebar.tsx           # navegação (Vencimentos; Usuários p/ admin), chats, upload
+│       ├── LoginGate.tsx         # autenticação: Entrar / Cadastre-se (c/ confirmação) / Esqueci a senha
+│       ├── ResetView.tsx         # redefinição de senha pelo link do e-mail (?reset=token)
+│       ├── UsuariosPanel.tsx     # painel admin: aprovar/recusar pendentes, excluir ativos
 │       ├── ChatView.tsx          # chat (streaming suave + anti-travamento), Compartilhar
 │       ├── ChatInput.tsx         # campo de envio + anexo de imagem ("+")
 │       ├── MessageBubble.tsx     # bolha (markdown, imagem, selos de vigência, "Pensando...")
@@ -374,6 +424,13 @@ node OCR), **nunca no frontend**.
   **não fica no bundle**. **Porém** os webhooks do n8n seguem **abertos** (CORS `*`,
   sem token): o login ainda é um **portão de UI**, não protege os webhooks em si.
   Para segurança real de backend, exija um token (emitido no login) nos webhooks.
+- **Ações de admin exigem sessão**: `admin_*` só funcionam com um token válido de
+  `sessions` (30 dias) pertencente a um usuário `is_admin` — conferido **no
+  servidor**, não no front. **Admins não podem ser excluídos** pela API.
+- **Webhook de e-mail com segredo**: o `trabalhista-email-reset` rejeita chamadas
+  sem o segredo compartilhado (evita abuso como relay de spam). O reset usa token
+  de **uso único** com expiração de 1h e resposta neutra (não revela se o e-mail
+  existe).
 - Webhooks com **CORS `*`** e **sem autenticação**; o de chat aciona um LLM.
   Considere restringir origem e exigir token antes de expor publicamente.
 - A tabela `dp_chat_memory` está com **RLS desabilitado** — avalie ligar RLS com
