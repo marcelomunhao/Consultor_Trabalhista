@@ -2,15 +2,20 @@ import { useEffect, useState } from "react";
 import { Sidebar, type View } from "./components/Sidebar";
 import { ChatView } from "./components/ChatView";
 import { DocumentosPanel } from "./components/DocumentosPanel";
+import { UsuariosPanel } from "./components/UsuariosPanel";
 import { LoginGate } from "./components/LoginGate";
 import { SharedView } from "./components/SharedView";
-import { authEnabled, logout } from "./auth";
+import { ResetView } from "./components/ResetView";
+import { authEnabled, isAdmin, logout } from "./auth";
 import { loadChats, novoChat, saveChats, tituloDoChat, type Chat } from "./chats";
 import type { Message } from "./types";
 
 export default function App() {
-  const shareId = new URLSearchParams(window.location.search).get("share");
+  const params = new URLSearchParams(window.location.search);
+  const shareId = params.get("share");
   if (shareId) return <SharedView id={shareId} />;
+  const resetToken = params.get("reset");
+  if (resetToken) return <ResetView token={resetToken} />;
   return <LoginGate>{(email) => <Workspace email={email} />}</LoginGate>;
 }
 
@@ -89,6 +94,7 @@ function Workspace({ email }: { email: string | null }) {
         onDeleteChat={excluirChat}
         userEmail={email}
         authEnabled={authEnabled()}
+        isAdmin={isAdmin()}
         onLogout={sair}
         onUploaded={() => {
           if (view === "documentos") setDocsVersion((v) => v + 1);
@@ -104,6 +110,8 @@ function Workspace({ email }: { email: string | null }) {
             messages={active.messages}
             onMessagesChange={atualizarMensagens}
           />
+        ) : view === "usuarios" ? (
+          <UsuariosPanel />
         ) : (
           <DocumentosPanel key={docsVersion} />
         )}

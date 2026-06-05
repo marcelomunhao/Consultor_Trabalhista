@@ -131,23 +131,46 @@ nunca em texto puro nem no frontend.
 | `email` | text (PK) | e-mail de acesso |
 | `senha_hash` | text | hash bcrypt (`crypt(senha, gen_salt('bf'))`) |
 | `nome` | text | nome exibível (opcional) |
-| `ativo` | boolean | `false` desativa o acesso |
+| `ativo` | boolean | `false` = pendente/desativado; `true` = pode entrar |
+| `is_admin` | boolean | admin (aprova cadastros e vê o painel de usuários) |
 | `created_at` | timestamptz | criação |
 
-A validação roda na função `dp_assistant.verificar_login(email, senha)` (compara
-`senha_hash = crypt(senha, senha_hash)`), chamada pela Edge Function `login` — a
-senha **não trafega para o navegador**.
+**`dp_assistant.sessions`** — token opaco (uuid) emitido no login, usado para
+autenticar ações (ex.: painel admin). `expires_at` = 30 dias.
+**`dp_assistant.password_resets`** — token de uso único para "esqueci a senha"
+(`expires_at` = 1 hora, `used_at` quando consumido).
+
+#### Fluxo de acesso
+
+- **Login**: validado na Edge Function (bcrypt no servidor); retorna `is_admin` + um
+  `token` de sessão. A senha **nunca trafega para o navegador**.
+- **Cadastre-se**: cria a conta **pendente** (`ativo=false`). Só entra após aprovação.
+- **Aprovação**: admins (**ti@** e **marcelo@**) veem o painel **Usuários** e
+  aprovam/recusam pendentes. Não-admins não veem esse painel.
+- **Esqueci a senha**: envia um link por e-mail (SMTP) com token; a tela `?reset=`
+  define a nova senha.
+
+A Edge Function `login` roteia por `{ action }`: `login`, `signup`, `forgot`,
+`reset`, `admin_list`, `admin_approve`, `admin_reject` (as `admin_*` exigem o token
+de uma sessão cujo usuário seja `is_admin`).
 
 #### Gerenciar usuários (SQL no Supabase)
 
 ```sql
--- criar/atualizar (senha vira hash automaticamente):
-insert into dp_assistant.usuarios (email, nome, senha_hash)
-values ('fulano@empresa.com', 'Fulano', extensions.crypt('SENHA', extensions.gen_salt('bf')))
+-- criar/atualizar usuario ATIVO (admins: is_admin = true):
+insert into dp_assistant.usuarios (email, nome, senha_hash, ativo, is_admin)
+values ('fulano@empresa.com', 'Fulano',
+        extensions.crypt('SENHA', extensions.gen_salt('bf')), true, false)
 on conflict (email) do update set senha_hash = excluded.senha_hash, ativo = true;
 
--- desativar:  update dp_assistant.usuarios set ativo = false where email = '...';
+-- promover a admin:  update dp_assistant.usuarios set is_admin = true where email = '...';
+-- desativar:         update dp_assistant.usuarios set ativo = false where email = '...';
 ```
+
+#### Esqueci a senha — secrets (SMTP) na Edge Function
+
+A function lê do ambiente: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`,
+`EMAIL_FROM`. Defina-os em **Supabase → Edge Functions → Secrets** (nunca no git).
 
 ### Relação
 
