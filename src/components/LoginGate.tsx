@@ -3,7 +3,8 @@ import { authEnabled, getCurrentUser, login } from "../auth";
 
 /**
  * Bloqueia o app atras de uma tela de login quando a autenticacao esta
- * configurada (VITE_AUTH_USERS / VITE_AUTH_PASSWORD). Caso contrario, libera.
+ * configurada (VITE_LOGIN_URL). A validacao ocorre no servidor (Edge Function).
+ * Caso contrario, libera.
  */
 export function LoginGate({ children }: { children: (email: string | null) => ReactNode }) {
   const [user, setUser] = useState<string | null>(() => getCurrentUser());
@@ -19,11 +20,16 @@ function LoginForm({ onSuccess }: { onSuccess: (email: string) => void }) {
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [erro, setErro] = useState<string | null>(null);
+  const [carregando, setCarregando] = useState(false);
 
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    const r = login(email, senha);
-    if (r.ok) onSuccess(email.trim().toLowerCase());
+    if (carregando) return;
+    setErro(null);
+    setCarregando(true);
+    const r = await login(email, senha);
+    setCarregando(false);
+    if (r.ok) onSuccess(r.email ?? email.trim().toLowerCase());
     else setErro(r.erro ?? "Falha no login.");
   }
 
@@ -67,9 +73,10 @@ function LoginForm({ onSuccess }: { onSuccess: (email: string) => void }) {
 
         <button
           type="submit"
-          className="w-full rounded-lg bg-[#0e7490] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[#0c5d72]"
+          disabled={carregando}
+          className="w-full rounded-lg bg-[#0e7490] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[#0c5d72] disabled:cursor-not-allowed disabled:opacity-60"
         >
-          Entrar
+          {carregando ? "Entrando..." : "Entrar"}
         </button>
       </form>
     </div>

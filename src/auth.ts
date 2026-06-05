@@ -1,21 +1,11 @@
 const AUTH_KEY = "trabalhista-auth-email";
 
-/** Lista de e-mails permitidos (definida em VITE_AUTH_USERS, separada por virgula). */
-function allowedEmails(): string[] {
-  const raw = (import.meta.env.VITE_AUTH_USERS as string | undefined) ?? "";
-  return raw
-    .split(",")
-    .map((e) => e.trim().toLowerCase())
-    .filter(Boolean);
-}
+/** URL da Edge Function de login (Supabase). Valida e-mail+senha no servidor. */
+const LOGIN_URL = import.meta.env.VITE_LOGIN_URL as string | undefined;
 
-function expectedPassword(): string {
-  return (import.meta.env.VITE_AUTH_PASSWORD as string | undefined) ?? "";
-}
-
-/** Se nao ha usuarios configurados, o login fica desativado (acesso livre). */
+/** Login fica ativo quando a URL de validacao esta configurada. Vazio = livre. */
 export function authEnabled(): boolean {
-  return allowedEmails().length > 0 && expectedPassword().length > 0;
+  return !!LOGIN_URL;
 }
 
 export function getCurrentUser(): string | null {
@@ -23,17 +13,35 @@ export function getCurrentUser(): string | null {
   return localStorage.getItem(AUTH_KEY);
 }
 
-/** Valida e-mail (na lista) + senha. Em sucesso, persiste a sessao. */
-export function login(email: string, senha: string): { ok: boolean; erro?: string } {
+/**
+ * Valida e-mail + senha no SERVIDOR (Supabase Edge Function `login`), que confere
+ * o hash (bcrypt) na tabela `dp_assistant.usuarios`. A senha nunca fica no bundle
+ * nem é comparada no navegador — o front só envia e recebe ok/erro.
+ */
+export async function login(
+  email: string,
+  senha: string,
+): Promise<{ ok: boolean; erro?: string; email?: string }> {
+  if (!LOGIN_URL) return { ok: false, erro: "Login não configurado (VITE_LOGIN_URL)." };
   const e = email.trim().toLowerCase();
-  if (!allowedEmails().includes(e)) {
-    return { ok: false, erro: "Usuario nao autorizado." };
+  try {
+    const res = await fetch(LOGIN_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: e, senha }),
+    });
+    const data = (await res.json().catch(() => null)) as
+      | { ok?: boolean; erro?: string; email?: string }
+      | null;
+    if (res.ok && data?.ok) {
+      const logado = (data.email ?? e).toLowerCase();
+      localStorage.setItem(AUTH_KEY, logado);
+      return { ok: true, email: logado };
+    }
+    return { ok: false, erro: data?.erro ?? "E-mail ou senha inválidos." };
+  } catch {
+    return { ok: false, erro: "Não foi possível validar o login. Tente novamente." };
   }
-  if (senha !== expectedPassword()) {
-    return { ok: false, erro: "Senha incorreta." };
-  }
-  localStorage.setItem(AUTH_KEY, e);
-  return { ok: true };
 }
 
 export function logout(): void {

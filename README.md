@@ -35,7 +35,9 @@ servidor próprio neste repositório — só o frontend (**React/Vite**).
   por nome** (sindicato, categoria, tipo).
 - **Enviar CCT** — upload de **`.md`** ou **`.pdf`** (PDF passa por **OCR Gemini**
   no n8n) → ingestão (chunk + embedding) → indexado para a busca do chat.
-- **Login** — acesso restrito por e-mail + senha compartilhada (env; vazio = livre).
+- **Login** — acesso restrito por e-mail + senha **validados no servidor** (Supabase
+  Edge Function `login`); a senha fica **em hash bcrypt** na tabela
+  `dp_assistant.usuarios`, **nunca no bundle**. Sem `VITE_LOGIN_URL` = acesso livre.
 - **Robustez** — eventos de erro do agente (ex.: rate limit) viram mensagem clara;
   **timeout de 75s** evita "Pensando" infinito; proteção contra a bolha travar se a
   aba perde o foco.
@@ -47,7 +49,7 @@ servidor próprio neste repositório — só o frontend (**React/Vite**).
 - **React 19 + TypeScript** (Vite) · **Tailwind CSS v4**
 - **react-markdown** + **remark-gfm** (formatação das respostas)
 - Backend: **n8n** (5 workflows) + **Supabase / Postgres** (schema `dp_assistant`,
-  com **pgvector**)
+  com **pgvector** e **pgcrypto**) + **Supabase Edge Function** (`login`)
 - IA: **OpenAI `gpt-4.1-mini`** (primário) + **Claude Sonnet 4.5** (fallback) ·
   embeddings **`text-embedding-3-small`** · OCR **Gemini** (ingestão de PDF)
 
@@ -57,6 +59,8 @@ servidor próprio neste repositório — só o frontend (**React/Vite**).
 
 ```
 Browser (React/Vite :5180)
+  ├─ Login       → POST <supabase>/functions/v1/login    { email, senha } → { ok, email }
+  │                  Supabase Edge Function → dp_assistant.verificar_login (bcrypt)
   ├─ Chat        → POST /webhook/trabalhista-chat        (streaming NDJSON)
   │                  { message, sessionId, image_base64?, image_mime? }
   │                  n8n: Webhook → Preparar Imagem → AI Agent (OpenAI/Claude
@@ -118,6 +122,32 @@ Schema **`dp_assistant`** (+ a tabela de memória em `public`). Vetores via exte
 
 **`public.dp_chat_memory`** — memória de conversa do agente (LangChain Postgres
 Chat Memory), chaveada pelo `sessionId`/`chatId`. Mantém o histórico por usuário.
+
+**`dp_assistant.usuarios`** — login do app. Senha em **hash bcrypt** (`pgcrypto`),
+nunca em texto puro nem no frontend.
+
+| Coluna | Tipo | Descrição |
+| --- | --- | --- |
+| `email` | text (PK) | e-mail de acesso |
+| `senha_hash` | text | hash bcrypt (`crypt(senha, gen_salt('bf'))`) |
+| `nome` | text | nome exibível (opcional) |
+| `ativo` | boolean | `false` desativa o acesso |
+| `created_at` | timestamptz | criação |
+
+A validação roda na função `dp_assistant.verificar_login(email, senha)` (compara
+`senha_hash = crypt(senha, senha_hash)`), chamada pela Edge Function `login` — a
+senha **não trafega para o navegador**.
+
+#### Gerenciar usuários (SQL no Supabase)
+
+```sql
+-- criar/atualizar (senha vira hash automaticamente):
+insert into dp_assistant.usuarios (email, nome, senha_hash)
+values ('fulano@empresa.com', 'Fulano', extensions.crypt('SENHA', extensions.gen_salt('bf')))
+on conflict (email) do update set senha_hash = excluded.senha_hash, ativo = true;
+
+-- desativar:  update dp_assistant.usuarios set ativo = false where email = '...';
+```
 
 ### Relação
 
@@ -272,8 +302,7 @@ Todas `VITE_*` vão para o bundle do navegador — **não coloque segredos forte
 | `VITE_INGEST_WEBHOOK_URL` | Webhook de ingestão (upload de CCT). |
 | `VITE_SHARE_SAVE_URL` | Webhook de compartilhamento — salvar. |
 | `VITE_SHARE_GET_URL` | Webhook de compartilhamento — abrir. |
-| `VITE_AUTH_USERS` | E-mails autorizados (separados por vírgula). Vazio = acesso livre. |
-| `VITE_AUTH_PASSWORD` | Senha compartilhada. **Não comite a senha real.** |
+| `VITE_LOGIN_URL` | URL da Edge Function de login (Supabase). Vazio = acesso livre. Usuários/senhas ficam no banco (`dp_assistant.usuarios`, hash bcrypt) — **nada de senha no `.env`**. |
 
 As chaves de **OpenAI**, **Anthropic** e **Gemini** ficam **no n8n** (credenciais /
 node OCR), **nunca no frontend**.
@@ -287,7 +316,7 @@ node OCR), **nunca no frontend**.
 ├── docs/n8n-webhook.md       # contrato dos webhooks + bloco <vigencia> + CORS
 ├── src/
 │   ├── api.ts                # cliente: chat(streaming + timeout), docs, upload, share
-│   ├── auth.ts               # login por e-mail + senha (env) e sessão
+│   ├── auth.ts               # login via Edge Function (validação no servidor) + sessão
 │   ├── chats.ts              # store de conversas (localStorage, por usuário)
 │   ├── user.ts               # UUID por navegador + novo chatId
 │   ├── vigencia.ts           # agrupar vencidos/a vencer + extrairVigencias + badgeStatus
@@ -313,9 +342,11 @@ node OCR), **nunca no frontend**.
 
 ## Notas de segurança
 
-- **Login é client-side**: a senha fica no bundle compilado (fora do git). Bom para
-  dissuadir acesso casual, **não é segurança forte**. Para endurecer, proteja os
-  webhooks com token e valide o login no n8n.
+- **Login validado no servidor**: e-mail/senha são conferidos na Edge Function
+  `login`, com a senha em **hash bcrypt** (`pgcrypto`) na `dp_assistant.usuarios` —
+  **não fica no bundle**. **Porém** os webhooks do n8n seguem **abertos** (CORS `*`,
+  sem token): o login ainda é um **portão de UI**, não protege os webhooks em si.
+  Para segurança real de backend, exija um token (emitido no login) nos webhooks.
 - Webhooks com **CORS `*`** e **sem autenticação**; o de chat aciona um LLM.
   Considere restringir origem e exigir token antes de expor publicamente.
 - A tabela `dp_chat_memory` está com **RLS desabilitado** — avalie ligar RLS com
